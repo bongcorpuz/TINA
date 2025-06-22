@@ -123,16 +123,17 @@ def proceed_to_tina(name):
 def tina_chat(question, username, history):
     answer = ask_tina(question, username)
     history = history or []
-    history.append((question, answer))
+    history.append({"role": "user", "content": question})
+    history.append({"role": "assistant", "content": answer})
     return "", history
 
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== INIT DB ==========
+# ========== INITIALIZE DB ==========
 init_db()
 
-# ========== GRADIO APP ==========
+# ========== GRADIO UI ==========
 with gr.Blocks() as demo:
     gr.Markdown("# TINA: Tax Information Navigation Assistant")
 
@@ -144,7 +145,7 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=False) as chat_section:
         gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat")
+        chatbot = gr.Chatbot(label="TINA Chat", type="messages")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
         upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)",
@@ -161,5 +162,5 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-# ========== LAUNCH (NO __main__) ==========
+# ========== LAUNCH ==========
 demo.queue().launch()
