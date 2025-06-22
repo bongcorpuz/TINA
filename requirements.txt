@@ -1,4 +1,4 @@
-huggingface_hub==0.25.2
+huggingface_hub>=0.28.1
 pytesseract
 pillow
 PyMuPDF==1.23.20
@@ -9,3 +9,4 @@ bcrypt
 sqlite-utils
 python-dotenv
 uvicorn==0.29.0
+pytest
