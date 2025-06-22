@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from database import (
     init_db,
     log_query,
-    view_logs,
     delete_log_by_id,
     export_logs_csv,
     view_summaries
@@ -53,9 +52,7 @@ def gr_query(input_text, session_state):
         return f"OpenAI Error: {str(e)}"
 
 def gr_view_logs(session_state):
-    if session_state.get("username") != "admin":
-        return "Unauthorized."
-    return view_logs()
+    return "Log viewer unavailable until 'view_logs' is correctly defined."
 
 def gr_delete_log(log_id, session_state):
     if session_state.get("username") != "admin":
@@ -121,4 +118,3 @@ with gr.Blocks() as demo:
     demo.load(lambda: {}, outputs=[session_state])
 
 demo.launch()
-
