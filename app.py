@@ -10,38 +10,40 @@ import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 
-# Load environment variables
+# Load .env values
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
 
-# ========== DATABASE SETUP ==========
+# ========== DATABASE ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        email_confirmed INTEGER DEFAULT 0,
-        subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
-        subscription_expires TEXT NOT NULL,
-        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )""")
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            email_confirmed INTEGER DEFAULT 0,
+            subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
+            subscription_expires TEXT NOT NULL,
+            role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     c.execute("""
-    CREATE TABLE IF NOT EXISTS qna_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        question TEXT NOT NULL,
-        answer TEXT NOT NULL,
-        source TEXT DEFAULT 'chatGPT',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )""")
+        CREATE TABLE IF NOT EXISTS qna_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            source TEXT DEFAULT 'chatGPT',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
     logging.info("Database initialized.")
@@ -78,8 +80,8 @@ def extract_text_from_file(file):
     if content.strip():
         with open(REFERENCE_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n--- Uploaded {datetime.now()} ---\n{content}\n")
-        return f"{file.name} processed and saved."
-    return f"{file.name} had no readable content."
+        return "File content processed and saved."
+    return "No readable content found in uploaded file."
 
 def load_reference_text():
     if os.path.exists(REFERENCE_FILE):
@@ -129,7 +131,7 @@ def tina_chat(question, username, history):
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== APP ==========
+# ========== RUN APP ==========
 init_db()
 
 with gr.Blocks() as demo:
@@ -143,15 +145,13 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=False) as chat_section:
         gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="tuple")
+        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="tuples")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
-        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)",
-                         file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"],
-                         file_count="multiple")
+        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
         upload_status = gr.Textbox(label="Upload Result", interactive=False)
 
-    state_name = gr.State("")
+    state_name = gr.State()
     state_history = gr.State([])
 
     greet_btn.click(fn=greet, inputs=name, outputs=[greeting, proceed_btn, greeting])
