@@ -16,14 +16,10 @@ from datetime import datetime, timedelta
 # Load API key from .env
 load_dotenv()
 
-# Admin password
 ADMIN_PASS = os.getenv("TINA_ADMIN_PASS", "admin")
-
-# Fix: Remove proxy arg by calling client directly
 import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize SQLite DB
 conn = sqlite3.connect("query_log.db")
 c = conn.cursor()
 c.execute("""
@@ -218,4 +214,34 @@ def chat_with_tina(user_input, file=None, username=None):
     except Exception as e:
         return f"Error: {e}"
 
-# WordPress + PayMongo integration should POST plan + username to webhook.
+# Interface
+with gr.Blocks() as demo:
+    username = gr.Textbox(label="Username", placeholder="Enter your username")
+    password = gr.Textbox(label="Password", type="password", placeholder="Enter your password")
+    login_btn = gr.Button("Login / Continue as Guest")
+    file_input = gr.File(label="Upload File (PDF/TXT/IMG, optional)", file_types=[".pdf", ".txt", ".md", ".jpg", ".png"])
+    user_query = gr.Textbox(label="Your Tax Question", placeholder="Ask something about PH taxation...")
+    submit_btn = gr.Button("Ask TINA")
+    output = gr.Textbox(label="TINA's Answer")
+    gr.Markdown("\ud83d\udc49 No account? Register or upgrade at [your WordPress site].")
+
+    session = {"username": None}
+
+    def handle_login(u, p):
+        if u == "guest":
+            session["username"] = "guest"
+            return "Logged in as guest (limit: 5 questions/day)"
+        if login_user(u, p):
+            session["username"] = u
+            return f"Welcome back, {u}!"
+        return "Login failed. Check credentials."
+
+    def handle_submit(question, file):
+        if not session.get("username"):
+            return "Please log in first."
+        return chat_with_tina(question, file=file, username=session["username"])
+
+    login_btn.click(fn=handle_login, inputs=[username, password], outputs=output)
+    submit_btn.click(fn=handle_submit, inputs=[user_query, file_input], outputs=output)
+
+demo.launch()
