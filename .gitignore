@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+*.log
+
+# Environment variables
+.env
+
+# App-specific folders
+knowledge_files/
+uploads/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
