@@ -115,10 +115,10 @@ def ask_tina(question, username="User"):
 
 # ========== GRADIO UI ==========
 def greet(name):
-    return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True), gr.update(visible=True)
+    return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True)
 
 def proceed_to_tina(name):
-    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), name
+    return gr.update(visible=False), gr.update(visible=True), name
 
 def tina_chat(question, username, history):
     answer = ask_tina(question, username)
@@ -146,14 +146,14 @@ with gr.Blocks() as demo:
         chatbot = gr.Chatbot(label="TINA Chat")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
-        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
+        upload = gr.File(label="Upload Reference Files", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
         upload_status = gr.Textbox(label="Upload Result", interactive=False)
 
     state_name = gr.State()
     state_history = gr.State([])
 
-    greet_btn.click(fn=greet, inputs=name, outputs=[greeting, proceed_btn, greeting])
-    proceed_btn.click(fn=proceed_to_tina, inputs=name, outputs=[greet_section, proceed_btn, chat_section, state_name])
+    greet_btn.click(fn=greet, inputs=name, outputs=[greeting, proceed_btn])
+    proceed_btn.click(fn=proceed_to_tina, inputs=name, outputs=[greet_section, chat_section, state_name])
     submit_btn.click(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
