@@ -3,6 +3,13 @@ from openai import OpenAI
 import os
 import shutil
 import tempfile
+import json
+import time
+from datetime import datetime, timedelta
+
+# NEW: Local modules for DB and email
+from database import init_db, add_user, get_user, update_subscription
+from email_confirm import send_confirmation_email
 
 # ✅ Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -11,14 +18,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 KNOWLEDGE_FOLDER = "uploaded_knowledge"
 os.makedirs(KNOWLEDGE_FOLDER, exist_ok=True)
 
-# 🔐 Hardcoded premium users (username:password)
-PREMIUM_USERS = {
-    "admin": "admin123",
-    "premiumuser": "secretpass"
+# 🎫 Subscription levels with pricing
+SUBSCRIPTION_OPTIONS = {
+    "Monthly (₱150)": 30,
+    "Quarterly (₱400)": 90,
+    "Yearly (₱1500)": 365
 }
-
-# 🎫 Subscription levels (to be expanded)
-SUBSCRIPTION_OPTIONS = ["Monthly", "Quarterly", "Yearly"]
 
 # 📌 Base system prompt
 BASE_SYSTEM_PROMPT = (
@@ -37,21 +42,26 @@ TAX_KEYWORDS = [
     "bmbe", "books of accounts", "bir form", "registration", "tax clearance"
 ]
 
-# 📚 Read all existing files in the knowledge folder
+# 📚 Read and summarize uploaded files
 
 def read_knowledge_files():
     combined_knowledge = ""
+    summary_json = {}
     for file_name in os.listdir(KNOWLEDGE_FOLDER):
         file_path = os.path.join(KNOWLEDGE_FOLDER, file_name)
         try:
             if file_name.endswith((".txt", ".md")):
                 with open(file_path, "r", encoding="utf-8") as f:
-                    combined_knowledge += f"\n\n{f.read()}"
+                    content = f.read()
+                    combined_knowledge += f"\n\n{content}"
+                    summary_json[file_name] = content[:500]
             elif file_name.endswith(".pdf"):
                 import PyPDF2
                 with open(file_path, "rb") as f:
                     reader = PyPDF2.PdfReader(f)
-                    combined_knowledge += "\n".join([page.extract_text() for page in reader.pages])
+                    text = "\n".join([page.extract_text() or "" for page in reader.pages])
+                    combined_knowledge += text
+                    summary_json[file_name] = text[:500]
             elif file_name.endswith((".jpeg", ".jpg", ".png")):
                 import pytesseract
                 from PIL import Image
@@ -61,14 +71,24 @@ def read_knowledge_files():
                 with open(os.path.join(KNOWLEDGE_FOLDER, text_filename), "w", encoding="utf-8") as tf:
                     tf.write(text)
                 combined_knowledge += f"\n\n{text}"
+                summary_json[file_name] = text[:500]
         except Exception as e:
             combined_knowledge += f"\n[Error reading {file_name}: {e}]"
-    return combined_knowledge[:4000]  # truncate to fit token limit
+    with open(os.path.join(KNOWLEDGE_FOLDER, "summary.json"), "w", encoding="utf-8") as js:
+        json.dump(summary_json, js, indent=2)
+    return combined_knowledge[:4000]
 
-# 🔐 Login authentication
+# 🔐 Login + expiration + database auth
 
 def authenticate(username, password):
-    return PREMIUM_USERS.get(username) == password
+    user = get_user(username)
+    if not user:
+        return False
+    if user["password"] != password:
+        return False
+    if datetime.strptime(user["expires"], "%Y-%m-%d") < datetime.now():
+        return False
+    return True
 
 # 📋 Viewer function for uploaded documents with preview
 
@@ -98,9 +118,7 @@ def list_uploaded_files_with_preview(authenticated):
 # 🧠 Response function
 
 def respond(message, history, system_message, max_tokens, temperature, top_p, username, password, uploaded_file):
-    is_authenticated = authenticate(username, password)
-
-    if not is_authenticated:
+    if not authenticate(username, password):
         return "🔐 Access Denied. Please login with a premium account."
 
     if not any(word in message.lower() for word in TAX_KEYWORDS):
@@ -113,10 +131,7 @@ def respond(message, history, system_message, max_tokens, temperature, top_p, us
             f.write(uploaded_file.read())
 
     knowledge_text = read_knowledge_files()
-
-    final_prompt = BASE_SYSTEM_PROMPT
-    if knowledge_text:
-        final_prompt += f"\n\nReference Files Summary:\n{knowledge_text}"
+    final_prompt = BASE_SYSTEM_PROMPT + f"\n\nReference Files Summary:\n{knowledge_text}"
 
     messages = [{"role": "system", "content": final_prompt}]
     for user, assistant in history:
@@ -144,7 +159,13 @@ with gr.Blocks() as demo:
         username_input = gr.Textbox(label="Username")
         password_input = gr.Textbox(label="Password", type="password")
 
-    subscription_dropdown = gr.Dropdown(choices=SUBSCRIPTION_OPTIONS, label="Choose Subscription Plan")
+    subscription_dropdown = gr.Dropdown(choices=list(SUBSCRIPTION_OPTIONS.keys()), label="Choose Subscription Plan")
+    confirm_email_btn = gr.Button("📧 Send Email Confirmation")
+    confirm_email_btn.click(
+        lambda u: send_confirmation_email(u),
+        inputs=[username_input],
+        outputs=None
+    )
 
     chat = gr.ChatInterface(
         fn=respond,
@@ -172,4 +193,5 @@ with gr.Blocks() as demo:
         )
 
 if __name__ == "__main__":
+    init_db()
     demo.launch()
