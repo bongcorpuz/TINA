@@ -187,3 +187,6 @@ def save_qna(question, answer, source="chatGPT"):
     conn.commit()
     conn.close()
     logging.info(f"QnA stored: {question} → {source}")
+
+if __name__ == "__main__":
+    init_db()
