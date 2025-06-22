@@ -1,11 +1,11 @@
 import gradio as gr
-import openai
+from openai import OpenAI
 import os
 
-# 🔐 Load OpenAI API key securely from Hugging Face Space secret
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# ✅ Initialize OpenAI client securely
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# 💡 Define strict system instructions for TINA
+# 📌 System instructions to keep TINA focused
 SYSTEM_PROMPT = (
     "You are TINA, the Tax Information Navigation Assistant. "
     "You ONLY answer questions related to Philippine taxation such as BIR forms, deadlines, taxes, and compliance. "
@@ -15,23 +15,22 @@ SYSTEM_PROMPT = (
     "Do not answer questions about general topics, law outside the Philippines, or anything unrelated to BIR or tax compliance."
 )
 
-# 🧠 Response function
 def respond(message, history, system_message, max_tokens, temperature, top_p):
     try:
-        # Optional: block totally off-topic queries before calling API
+        # Optional basic keyword filter
         tax_keywords = ["bir", "tax", "vat", "income", "1701", "2550", "0619", "withholding", "rdo", "tin", "philippine"]
         if not any(word in message.lower() for word in tax_keywords):
             return "Sorry, I can only assist with questions related to Philippine taxation. Please try again with a BIR-related query."
 
-        # Build conversation messages for OpenAI
+        # Format history for OpenAI API
         messages = [{"role": "system", "content": system_message}]
         for user, assistant in history:
             messages.append({"role": "user", "content": user})
             messages.append({"role": "assistant", "content": assistant})
         messages.append({"role": "user", "content": message})
 
-        # OpenAI streaming response
-        response = openai.ChatCompletion.create(
+        # Stream OpenAI response (v1.x SDK)
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=temperature,
@@ -42,15 +41,15 @@ def respond(message, history, system_message, max_tokens, temperature, top_p):
 
         partial = ""
         for chunk in response:
-            delta = chunk["choices"][0]["delta"]
-            if "content" in delta:
-                partial += delta["content"]
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                partial += delta.content
                 yield partial
 
     except Exception as e:
         yield f"⚠️ An error occurred: {str(e)}"
 
-# 🖼️ Build the chatbot interface
+# 🎨 Gradio interface
 demo = gr.ChatInterface(
     fn=respond,
     additional_inputs=[
