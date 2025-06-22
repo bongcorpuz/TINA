@@ -1,4 +1,4 @@
-# file: tina_app.py
+# file: app.py
 
 import os
 import sqlite3
@@ -7,14 +7,14 @@ import bcrypt
 import logging
 from dotenv import load_dotenv
 import gradio as gr
-import openai
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
+from openai import OpenAI
 
 # ========== CONFIGURATION ==========
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
@@ -67,16 +67,19 @@ def save_qna(question, answer, source="chatGPT"):
 
 def extract_text_from_file(file):
     try:
-        ext = os.path.splitext(file.name)[1].lower()
+        file_path = file.name if hasattr(file, "name") else file
+        ext = os.path.splitext(file_path)[1].lower()
         content = ""
 
         if ext in [".txt", ".md"]:
-            content = file.read().decode("utf-8")
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
         elif ext == ".pdf":
-            pdf = fitz.open(stream=file.read(), filetype="pdf")
-            content = "\n".join([page.get_text() for page in pdf])
+            with open(file_path, "rb") as f:
+                pdf = fitz.open(stream=f.read(), filetype="pdf")
+                content = "\n".join([page.get_text() for page in pdf])
         elif ext in [".jpg", ".jpeg", ".png"]:
-            img = Image.open(file)
+            img = Image.open(file_path)
             content = pytesseract.image_to_string(img)
 
         if content.strip():
@@ -104,78 +107,42 @@ SYSTEM_PROMPT = (
 
 def ask_tina(question, username="User"):
     try:
-        if not openai.api_key:
-            return "API key missing. Please check your environment setup."
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": question}
+        ]
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         ref = load_reference_text()
         if ref:
-            messages.append({"role": "system", "content": f"Reference material:\n{ref[:3000]}"})
-        messages.append({"role": "user", "content": question})
+            messages.insert(1, {"role": "system", "content": f"Reference material:\n{ref[:3000]}"})
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
-        answer = response.choices[0].message["content"]
+        answer = response.choices[0].message.content
         save_qna(question, answer, source="chatGPT+ref" if ref else "chatGPT")
         return answer.strip()
     except Exception as e:
-        logging.exception("Error in ask_tina: %s", e)
+        logging.exception("ask_tina failed: %s", e)
         return f"Sorry, something went wrong: {e}"
 
-# ========== UI LOGIC ==========
-def greet(name):
-    return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True), gr.update(visible=True)
-
-def proceed_to_tina(name):
-    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), name
-
-def tina_chat(question, username, history):
-    answer = ask_tina(question, username)
-    history = history or []
-    history.append({"role": "user", "content": question})
-    history.append({"role": "assistant", "content": answer})
-    return "", history
-
-def handle_upload(files):
-    return "\n".join([extract_text_from_file(f) for f in files])
-
-# ========== INITIALIZE DB ==========
 init_db()
 
 # ========== GRADIO UI ==========
 with gr.Blocks() as demo:
-    gr.Markdown("# TINA: Tax Information Navigation Assistant")
+    chatbot = gr.Chatbot(label="TINA Chat")
+    file_upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)")
+    user_input = gr.Textbox(placeholder="Type your tax question and press Enter", label="Your Question")
 
-    with gr.Column(visible=True) as greet_section:
-        name = gr.Textbox(label="Enter your name")
-        greet_btn = gr.Button("Greet Me")
-        greeting = gr.Textbox(label="Greeting", interactive=False)
-        proceed_btn = gr.Button("Proceed to TINA", visible=False)
+    def handle_file(file):
+        return extract_text_from_file(file)
 
-    with gr.Column(visible=False) as chat_section:
-        gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat", type="messages")
-        question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
-        submit_btn = gr.Button("Ask TINA")
-        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)",
-                         file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"],
-                         file_count="multiple")
-        upload_status = gr.Textbox(label="Upload Result", interactive=False)
+    def handle_chat(message, history):
+        answer = ask_tina(message)
+        return answer
 
-    state_name = gr.State()
-    state_history = gr.State([])
+    file_upload.change(fn=handle_file, inputs=file_upload, outputs=chatbot)
+    user_input.submit(fn=handle_chat, inputs=user_input, outputs=chatbot)
 
-    greet_btn.click(fn=greet, inputs=name, outputs=[greeting, proceed_btn, greeting])
-    proceed_btn.click(fn=proceed_to_tina, inputs=name, outputs=[greet_section, proceed_btn, chat_section, state_name])
-    submit_btn.click(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
-    question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
-    upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
-
-# ========== LAUNCH ==========
-if __name__ == "__main__":
-    try:
-        demo.queue().launch(server_name="0.0.0.0", share=True)
-    except Exception as e:
-        logging.exception("Launch failed: %s", e)
+demo.launch()
