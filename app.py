@@ -43,7 +43,6 @@ TAX_KEYWORDS = [
 ]
 
 # 📚 Read and summarize uploaded files
-
 def read_knowledge_files():
     combined_knowledge = ""
     summary_json = {}
@@ -79,7 +78,6 @@ def read_knowledge_files():
     return combined_knowledge[:4000]
 
 # 🔐 Login + expiration + database auth
-
 def authenticate(username, password):
     user = get_user(username)
     if not user:
@@ -91,7 +89,6 @@ def authenticate(username, password):
     return True
 
 # 📋 Viewer function for uploaded documents with preview
-
 def list_uploaded_files_with_preview(authenticated):
     if not authenticated:
         return "🔐 Access Denied: Only admins or premium users can view files."
@@ -116,7 +113,6 @@ def list_uploaded_files_with_preview(authenticated):
     return output
 
 # 🧠 Response function
-
 def respond(message, history, system_message, max_tokens, temperature, top_p, username, password, uploaded_file):
     if not authenticate(username, password):
         return "🔐 Access Denied. Please login with a premium account."
@@ -134,9 +130,12 @@ def respond(message, history, system_message, max_tokens, temperature, top_p, us
     final_prompt = BASE_SYSTEM_PROMPT + f"\n\nReference Files Summary:\n{knowledge_text}"
 
     messages = [{"role": "system", "content": final_prompt}]
-    for user, assistant in history:
-        messages.append({"role": "user", "content": user})
-        messages.append({"role": "assistant", "content": assistant})
+    for entry in history:
+        if isinstance(entry, dict):
+            messages.append(entry)
+        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+            messages.append({"role": "user", "content": entry[0]})
+            messages.append({"role": "assistant", "content": entry[1]})
     messages.append({"role": "user", "content": message})
 
     response = client.chat.completions.create(
@@ -150,7 +149,6 @@ def respond(message, history, system_message, max_tokens, temperature, top_p, us
     return response.choices[0].message.content
 
 # 🎨 Gradio UI
-
 with gr.Blocks() as demo:
     gr.Markdown("# TINA – Tax Information Navigation Assistant 🇵🇭")
     gr.Markdown("Login to ask about BIR forms, deadlines, tax rules, and compliance in the Philippines.")
@@ -159,40 +157,4 @@ with gr.Blocks() as demo:
         username_input = gr.Textbox(label="Username")
         password_input = gr.Textbox(label="Password", type="password")
 
-    subscription_dropdown = gr.Dropdown(choices=list(SUBSCRIPTION_OPTIONS.keys()), label="Choose Subscription Plan")
-    status = gr.Textbox(label="Status Message")
-    confirm_email_btn = gr.Button("📧 Send Email Confirmation")
-    confirm_email_btn.click(
-        lambda u: send_confirmation_email(u),
-        inputs=[username_input],
-        outputs=status
-    )
-
-    chat = gr.ChatInterface(
-        fn=respond,
-        additional_inputs=[
-            gr.Textbox(value=BASE_SYSTEM_PROMPT, visible=False),
-            gr.Slider(minimum=256, maximum=2048, value=512, step=1, label="Max new tokens"),
-            gr.Slider(minimum=0.1, maximum=1.5, value=0.7, step=0.1, label="Temperature"),
-            gr.Slider(minimum=0.1, maximum=1.0, value=0.95, step=0.05, label="Top-p (nucleus sampling)"),
-            username_input,
-            password_input,
-            gr.File(label="Upload Knowledge File (txt, pdf, md, jpg, png)", type="binary")
-        ]
-    )
-
-    with gr.Accordion("📂 View Uploaded Files", open=False):
-        auth_user = gr.Textbox(label="Enter Username")
-        auth_pass = gr.Textbox(label="Enter Password", type="password")
-        file_list_output = gr.Textbox(label="Uploaded Files & Previews", lines=20)
-        refresh_btn = gr.Button("🔄 Refresh File List")
-
-        refresh_btn.click(
-            fn=lambda u, p: list_uploaded_files_with_preview(authenticate(u, p)),
-            inputs=[auth_user, auth_pass],
-            outputs=file_list_output
-        )
-
-if __name__ == "__main__":
-    init_db()
-    demo.launch()
+    subscri
