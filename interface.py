@@ -1,44 +1,62 @@
 import gradio as gr
-# Import your AI logic here. For example, from app import ask_tina
-# from app import ask_tina
+from app import ask_tina  # Make sure app.py defines ask_tina(question, username)
 
 def greet(name):
-    return f"Hello, {name}! Welcome to TINA."
+    return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True), gr.update(visible=True)
 
-def ask_tina(question, username):
-    # Replace with your actual AI logic
-    # For demonstration, echo the question
-    answer = f"TINA's answer to '{question}' for {username}."
-    return answer
+def proceed_to_tina(name):
+    # Hide greeting and proceed button, show chat section
+    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), gr.State(name)
 
-def show_ai_interface(name):
-    # This function renders the main AI interface
-    with gr.Blocks() as ai_app:
-        gr.Markdown(f"### Hi {name}! Ask your tax questions below.")
-        with gr.Row():
-            question = gr.Textbox(label="Your Question", placeholder="Type your tax-related question here...")
-        answer = gr.Textbox(label="TINA's Response", interactive=False)
-        ask_btn = gr.Button("Ask TINA")
-        ask_btn.click(fn=ask_tina, inputs=[question, gr.State(name)], outputs=answer)
-    return ai_app
+def tina_chat(question, state_name, history):
+    username = state_name or "User"
+    answer = ask_tina(question, username)
+    history = history or []
+    history.append((question, answer))
+    return "", history
 
 with gr.Blocks() as demo:
     gr.Markdown("# TINA: Tax Information Navigation Assistance")
-    name = gr.Textbox(label="Enter your name")
-    greet_btn = gr.Button("Greet Me")
-    greeting = gr.Textbox(label="Greeting", interactive=False)
-    proceed_btn = gr.Button("Proceed to TINA", visible=False)
-    
-    # Step 1: Greet user
-    def greet_and_show_proceed(name):
-        return greet(name), gr.update(visible=True)
-    
-    greet_btn.click(fn=greet_and_show_proceed, inputs=name, outputs=[greeting, proceed_btn])
-    
-    # Step 2: Show AI interface after greeting
-    def launch_ai_app(name):
-        return gr.update(visible=False), gr.update(visible=False), show_ai_interface(name)
-    
-    proceed_btn.click(fn=launch_ai_app, inputs=name, outputs=[name, greet_btn, gr.Column()])
+
+    with gr.Column(visible=True) as greet_section:
+        name = gr.Textbox(label="Enter your name", interactive=True)
+        greet_btn = gr.Button("Greet Me")
+        greeting = gr.Textbox(label="Greeting", interactive=False)
+        proceed_btn = gr.Button("Proceed to TINA", visible=False)
+
+    with gr.Column(visible=False) as chat_section:
+        gr.Markdown("### Ask TINA your tax-related questions!")
+        chatbot = gr.Chatbot(label="TINA Chat", height=350)
+        question = gr.Textbox(label="Your Question", placeholder="Type your tax question here and press Enter")
+        submit_btn = gr.Button("Ask TINA")
+
+    state_name = gr.State()  # For storing the user's name
+    state_history = gr.State([])
+
+    # Connect greeting step
+    greet_btn.click(
+        fn=greet,
+        inputs=name,
+        outputs=[greeting, proceed_btn, greeting]
+    )
+
+    # Proceed to chat step
+    proceed_btn.click(
+        fn=proceed_to_tina,
+        inputs=name,
+        outputs=[greet_section, proceed_btn, chat_section, state_name]
+    )
+
+    # Chatbot Q&A
+    submit_btn.click(
+        fn=tina_chat,
+        inputs=[question, state_name, chatbot],
+        outputs=[question, chatbot]
+    )
+    question.submit(
+        fn=tina_chat,
+        inputs=[question, state_name, chatbot],
+        outputs=[question, chatbot]
+    )
 
 demo.launch()
