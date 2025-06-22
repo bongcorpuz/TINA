@@ -19,8 +19,9 @@ load_dotenv()
 # Admin password
 ADMIN_PASS = os.getenv("TINA_ADMIN_PASS", "admin")
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Fix: Remove proxy arg by calling client directly
+import openai
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize SQLite DB
 conn = sqlite3.connect("query_log.db")
@@ -142,11 +143,11 @@ def summarize_text(text):
         {"role": "user", "content": text[:3000]}
     ]
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
-        summary = response.choices[0].message.content.strip()
+        summary = response.choices[0].message['content'].strip()
         c.execute("INSERT INTO summaries (hash, summary) VALUES (?, ?)", (h, summary))
         conn.commit()
         return summary
@@ -156,11 +157,11 @@ def summarize_text(text):
 def aggregate_past_knowledge():
     c.execute("SELECT query, response FROM logs")
     entries = c.fetchall()
-    return "\n".join([f"Q: {q}\nA: {a}" for _, q, _, a, _ in entries])
+    return "\n".join([f"Q: {q}\nA: {a}" for q, a in entries])
 
 def find_similar_query(user_input, threshold=0.85):
     c.execute("SELECT query, response FROM logs")
-    for _, q, _, a, _ in c.fetchall():
+    for q, a in c.fetchall():
         similarity = SequenceMatcher(None, user_input.lower(), q.lower()).ratio()
         if similarity >= threshold:
             return a
@@ -206,11 +207,11 @@ def chat_with_tina(user_input, file=None, username=None):
     ]
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
-        answer = response.choices[0].message.content.strip()
+        answer = response.choices[0].message['content'].strip()
         c.execute("INSERT INTO logs (username, query, context, response) VALUES (?, ?, ?, ?)", (username, user_input, full_context, answer))
         conn.commit()
         return answer
