@@ -17,7 +17,7 @@ DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
 
-# ========== DATABASE SETUP ==========
+# ========== DATABASE ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -87,7 +87,7 @@ def load_reference_text():
             return f.read()
     return ""
 
-# ========== OPENAI ==========
+# ========== OPENAI CHAT ==========
 SYSTEM_PROMPT = (
     "You are TINA, the Tax Information Navigation Assistant. "
     "You are helpful, polite, and specialize in answering questions about Philippine taxation. "
@@ -113,7 +113,7 @@ def ask_tina(question, username="User"):
     except Exception as e:
         return f"Sorry, something went wrong: {e}"
 
-# ========== GRADIO UI ==========
+# ========== UI HANDLERS ==========
 def greet(name):
     return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True), gr.update(visible=True)
 
@@ -123,18 +123,17 @@ def proceed_to_tina(name):
 def tina_chat(question, username, history):
     answer = ask_tina(question, username)
     history = history or []
-    history.append({"role": "user", "content": question})
-    history.append({"role": "assistant", "content": answer})
+    history.append((question, answer))
     return "", history
 
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== APP ==========
+# ========== LAUNCH UI ==========
 init_db()
 
 with gr.Blocks() as demo:
-    gr.Markdown("# TINA: Tax Information Navigation Assistant")
+    gr.Markdown("# TINA: Tax Information Navigation Assistance")
 
     with gr.Column(visible=True) as greet_section:
         name = gr.Textbox(label="Enter your name")
@@ -161,5 +160,5 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-# DO NOT use launch() on Hugging Face. Just expose `demo` object.
+# ✅ Required for Hugging Face Spaces — no `.launch()`
 demo.queue()
