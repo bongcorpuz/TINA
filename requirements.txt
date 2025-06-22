@@ -4,7 +4,7 @@ pillow
 PyMuPDF
 pdfplumber
 openai>=1.0.0
-gradio
+gradio==4.21.0
 bcrypt
 sqlite-utils
 python-dotenv
