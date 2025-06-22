@@ -1,37 +1,39 @@
 import smtplib
 import ssl
-from email.message import EmailMessage
 import os
+from email.message import EmailMessage
+from dotenv import load_dotenv
 
-# Environment variables (set these in your Hugging Face or local environment)
-GMAIL_SENDER = os.getenv("GMAIL_SENDER")      # Your Gmail address
-GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")  # Your Gmail App Password
+# Load credentials from .env
+load_dotenv()
+EMAIL_ADDRESS = os.getenv("EMAIL_USER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
 
 def send_confirmation_email(to_email):
+    msg = EmailMessage()
+    msg["Subject"] = "TINA Premium Access Confirmation"
+    msg["From"] = EMAIL_ADDRESS
+    msg["To"] = to_email
+    msg.set_content(
+        f"""
+Hi there,
+
+Thanks for registering for premium access to TINA 🇵🇭.
+
+Your subscription is being processed. This email confirms that we received your request. If you did not sign up, please ignore this message.
+
+Regards,  
+TINA Admin
+"""
+    )
+
     try:
-        if not GMAIL_SENDER or not GMAIL_PASSWORD:
-            return "❌ Email sender not configured."
-
-        msg = EmailMessage()
-        msg['Subject'] = 'TINA Email Confirmation'
-        msg['From'] = GMAIL_SENDER
-        msg['To'] = to_email
-        msg.set_content(f"""
-Hello,
-
-This is a confirmation email for your access to TINA – Tax Information Navigation Assistant.
-
-Your account is now eligible for activation by admin. Kindly wait for confirmation.
-
-Thank you,
-TINA Support Team
-        """.strip())
-
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(GMAIL_SENDER, GMAIL_PASSWORD)
-            server.send_message(msg)
-
-        return f"✅ Confirmation email sent to {to_email}"
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        print(f"✅ Email sent to {to_email}")
+        return f"✅ Email sent to {to_email}"
     except Exception as e:
-        return f"❌ Failed to send email: {str(e)}"
+        print(f"❌ Email failed: {e}")
+        return f"❌ Failed to send email: {e}"
