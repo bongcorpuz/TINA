@@ -1,9 +1,9 @@
 huggingface_hub==0.25.2
 pytesseract
 pillow
-PyMuPDF
+PyMuPDF==1.23.20
 pdfplumber
-openai>=1.0.0
+openai==1.30.1
 gradio==4.21.0
 bcrypt
 sqlite-utils
