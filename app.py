@@ -10,40 +10,39 @@ import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 
-# Load .env values
+# Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
 
-# ========== DATABASE ==========
+# ========== DATABASE SETUP ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            email_confirmed INTEGER DEFAULT 0,
-            subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
-            subscription_expires TEXT NOT NULL,
-            role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        email_confirmed INTEGER DEFAULT 0,
+        subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
+        subscription_expires TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
     c.execute("""
-        CREATE TABLE IF NOT EXISTS qna_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            question TEXT NOT NULL,
-            answer TEXT NOT NULL,
-            source TEXT DEFAULT 'chatGPT',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS qna_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        source TEXT DEFAULT 'chatGPT',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
     conn.commit()
     conn.close()
     logging.info("Database initialized.")
@@ -53,14 +52,11 @@ def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def is_valid_tax_question(text):
-    keywords = [
-        k.strip().lower() for k in os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
-    ]
-    return any(k in text.lower() for k in keywords)
+    keywords = os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
+    return any(k.lower() in text.lower() for k in keywords)
 
 def save_qna(question, answer, source="chatGPT"):
-    if not is_valid_tax_question(question):
-        return
+    if not is_valid_tax_question(question): return
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("INSERT INTO qna_log (question, answer, source) VALUES (?, ?, ?)", (question, answer, source))
@@ -79,7 +75,7 @@ def extract_text_from_file(file):
     elif ext in [".jpg", ".jpeg", ".png"]:
         img = Image.open(file)
         content = pytesseract.image_to_string(img)
-    
+
     if content.strip():
         with open(REFERENCE_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n--- Uploaded {datetime.now()} ---\n{content}\n")
@@ -128,7 +124,6 @@ def proceed_to_tina(name):
 def tina_chat(question, username, history):
     answer = ask_tina(question, username)
     history = history or []
-    # Use Gradio's new 'messages' format: list of dicts with 'role' and 'content'
     history.append({"role": "user", "content": question})
     history.append({"role": "assistant", "content": answer})
     return "", history
@@ -136,9 +131,7 @@ def tina_chat(question, username, history):
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== RUN APP ==========
-init_db()
-
+# ========== UI LAYOUT ==========
 with gr.Blocks() as demo:
     gr.Markdown("# TINA: Tax Information Navigation Assistance")
 
@@ -165,4 +158,8 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-demo.launch()
+# ========== ENTRY POINT ==========
+init_db()
+
+if __name__ == "__main__":
+    demo.launch()
