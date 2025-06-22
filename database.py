@@ -1,7 +1,8 @@
-import sqlite3
+ import sqlite3
 from datetime import datetime, timedelta
 import bcrypt
 import logging
+import os
 
 DB_NAME = "tina_users.db"
 
@@ -40,6 +41,9 @@ def init_db():
     conn.commit()
     conn.close()
     logging.info("Database initialized successfully.")
+
+    # Auto-create admin account if not exists
+    create_default_admin()
 
 # Hash password securely
 def hash_password(password):
@@ -115,3 +119,19 @@ def confirm_email(username):
     conn.commit()
     conn.close()
     logging.info(f"Email confirmed for user {username}.")
+
+# Automatically create a default admin account if not present
+def create_default_admin():
+    admin_username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin@1971")
+    admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "info@bongcorpuz.com")
+
+    user = get_user(admin_username)
+    if user is None:
+        add_user(admin_username, admin_password, admin_email, "yearly")
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("UPDATE users SET role = 'admin' WHERE username = ?", (admin_username,))
+        conn.commit()
+        conn.close()
+        logging.info("Default admin account created.")
