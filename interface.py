@@ -1,15 +1,15 @@
 import gradio as gr
 import openai
 import os
-from app import init_db, is_valid_tax_question, save_qna
+from dotenv import load_dotenv
+from app import save_qna, is_valid_tax_question  # Import from app.py
 
-# Initialize the database
-init_db()
+# Load environment variables
+load_dotenv()
 
-# Load OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# System prompt tailored for PH taxation
+# System prompt tailored for Philippine tax Q&A
 SYSTEM_PROMPT = (
     "You are TINA, the Tax Information Navigation Assistant. "
     "You are helpful, polite, and specialize in answering questions about Philippine taxation. "
@@ -17,35 +17,43 @@ SYSTEM_PROMPT = (
     "and tax reform laws like TRAIN, CREATE, and Ease of Paying Taxes Act. Do not offer legal advice."
 )
 
-# Chat function
-def chat_with_tina(message):
-    if not is_valid_tax_question(message):
-        return "Sorry, this question doesn't seem related to Philippine taxation."
-
+# Chat function using OpenAI API
+def ask_tina(user_input):
+    if not user_input.strip():
+        return "Please enter a question related to Philippine taxation."
+    
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or gpt-4 if your plan supports it
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": message}
-            ]
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0.4
         )
-        answer = response.choices[0].message["content"].strip()
-        save_qna(message, answer)
+        answer = response.choices[0].message.content.strip()
+
+        # Log to QnA DB only if it's a tax-related question
+        if is_valid_tax_question(user_input):
+            save_qna(user_input, answer)
+
         return answer
     except Exception as e:
-        return f"Error calling OpenAI: {str(e)}"
+        return f"Error: {str(e)}"
 
-# Gradio UI
-iface = gr.Interface(
-    fn=chat_with_tina,
-    inputs=gr.Textbox(lines=4, label="Ask a PH Tax Question to TINA"),
-    outputs=gr.Textbox(label="TINA's Response"),
-    title="TINA - Tax Information Navigation Assistant",
-    description="Ask TINA about Philippine taxation laws, forms, compliance, and more. Type a valid tax-related question to get started.",
-    theme="default"
-)
+# Launch Gradio interface
+def launch_ui():
+    with gr.Blocks(title="TINA - Philippine Tax Chatbot") as demo:
+        gr.Markdown("## 💬 TINA: Your Tax Info Navigation Assistant\nAsk anything about Philippine taxation!")
+        
+        with gr.Row():
+            user_input = gr.Textbox(label="Your Question", placeholder="e.g., What is the deadline for filing BIR Form 1701?")
+        
+        with gr.Row():
+            submit_btn = gr.Button("Ask TINA")
+        
+        output = gr.Textbox(label="TINA's Answer")
 
-# Launch
-if __name__ == "__main__":
-    iface.launch()
+        submit_btn.click(fn=ask_tina, inputs=user_input, outputs=output)
+
+    demo.launch()
