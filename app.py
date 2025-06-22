@@ -10,14 +10,14 @@ import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 
-# Load .env
+# Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
 
-# ========== DATABASE ==========
+# ========== DATABASE SETUP ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -74,7 +74,7 @@ def extract_text_from_file(file):
     elif ext in [".jpg", ".jpeg", ".png"]:
         img = Image.open(file)
         content = pytesseract.image_to_string(img)
-
+    
     if content.strip():
         with open(REFERENCE_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n--- Uploaded {datetime.now()} ---\n{content}\n")
@@ -130,7 +130,7 @@ def tina_chat(question, username, history):
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== INIT APP ==========
+# ========== APP ==========
 init_db()
 
 with gr.Blocks() as demo:
@@ -144,10 +144,12 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=False) as chat_section:
         gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat", type="messages")
+        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="messages")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
-        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
+        upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)",
+                         file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"],
+                         file_count="multiple")
         upload_status = gr.Textbox(label="Upload Result", interactive=False)
 
     state_name = gr.State()
@@ -159,4 +161,6 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-demo.launch()
+# Launch safely with queue mode
+if __name__ == "__main__":
+    demo.queue().launch()
