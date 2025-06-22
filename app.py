@@ -110,6 +110,34 @@ def save_qna(question, answer, source="chatGPT"):
     conn.commit()
     conn.close()
 
-# === OPENAI QUERY ===
-SYSTEM_PROMPT = (
-    "Yo"
+# === OPENAI LOGIC ===
+SYSTEM_PROMPT = """
+You are TINA, the Tax Information Navigation Assistant.
+You are helpful, polite, and specialize in answering questions about Philippine taxation.
+Base your responses on publicly available tax laws such as the NIRC, BIR Revenue Regulations, RMCs,
+and tax reform laws like TRAIN, CREATE, and Ease of Paying Taxes Act. Do not offer legal advice.
+"""
+
+def query_openai(message):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": message}
+            ]
+        )
+        reply = response.choices[0].message["content"].strip()
+        save_qna(message, reply)
+        return reply
+    except Exception as e:
+        logging.error(f"OpenAI Error: {e}")
+        return "Sorry, I encountered an error while processing your request."
+
+# === GRADIO UI ===
+def chat_interface(message):
+    return query_openai(message)
+
+init_db()
+ui = gr.Interface(fn=chat_interface, inputs="text", outputs="text", title="TINA - PH Tax Chatbot")
+ui.launch()
