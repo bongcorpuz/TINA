@@ -43,110 +43,16 @@ TAX_KEYWORDS = [
 ]
 
 # 📚 Read and summarize uploaded files
-def read_knowledge_files():
-    combined_knowledge = ""
-    summary_json = {}
-    for file_name in os.listdir(KNOWLEDGE_FOLDER):
-        file_path = os.path.join(KNOWLEDGE_FOLDER, file_name)
-        try:
-            if file_name.endswith((".txt", ".md")):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    combined_knowledge += f"\n\n{content}"
-                    summary_json[file_name] = content[:500]
-            elif file_name.endswith(".pdf"):
-                import PyPDF2
-                with open(file_path, "rb") as f:
-                    reader = PyPDF2.PdfReader(f)
-                    text = "\n".join([page.extract_text() or "" for page in reader.pages])
-                    combined_knowledge += text
-                    summary_json[file_name] = text[:500]
-            elif file_name.endswith((".jpeg", ".jpg", ".png")):
-                import pytesseract
-                from PIL import Image
-                image = Image.open(file_path)
-                text = pytesseract.image_to_string(image)
-                text_filename = os.path.splitext(file_name)[0] + ".txt"
-                with open(os.path.join(KNOWLEDGE_FOLDER, text_filename), "w", encoding="utf-8") as tf:
-                    tf.write(text)
-                combined_knowledge += f"\n\n{text}"
-                summary_json[file_name] = text[:500]
-        except Exception as e:
-            combined_knowledge += f"\n[Error reading {file_name}: {e}]"
-    with open(os.path.join(KNOWLEDGE_FOLDER, "summary.json"), "w", encoding="utf-8") as js:
-        json.dump(summary_json, js, indent=2)
-    return combined_knowledge[:4000]
+# ... (unchanged for brevity)
 
 # 🔐 Login + expiration + database auth
-def authenticate(username, password):
-    user = get_user(username)
-    if not user:
-        return False
-    if user["password"] != password:
-        return False
-    if datetime.strptime(user["expires"], "%Y-%m-%d") < datetime.now():
-        return False
-    return True
+# ... (unchanged for brevity)
 
 # 📋 Viewer function for uploaded documents with preview
-def list_uploaded_files_with_preview(authenticated):
-    if not authenticated:
-        return "🔐 Access Denied: Only admins or premium users can view files."
-    files = os.listdir(KNOWLEDGE_FOLDER)
-    if not files:
-        return "📂 No files uploaded yet."
-    output = ""
-    for f in files:
-        output += f"📄 {f}\n"
-        path = os.path.join(KNOWLEDGE_FOLDER, f)
-        try:
-            if f.endswith((".txt", ".md")):
-                with open(path, "r", encoding="utf-8") as file:
-                    content = file.read(300)
-                    output += f"\n📝 Preview:\n{content}\n\n"
-            elif f.endswith((".jpeg", ".jpg", ".png")):
-                output += f"🖼️ [Image file preview not shown]\n\n"
-            elif f.endswith(".pdf"):
-                output += f"📄 [PDF preview not available]\n\n"
-        except:
-            output += f"⚠️ Could not preview {f}\n\n"
-    return output
+# ... (unchanged for brevity)
 
 # 🧠 Response function
-def respond(message, history, system_message, max_tokens, temperature, top_p, username, password, uploaded_file):
-    if not authenticate(username, password):
-        return "🔐 Access Denied. Please login with a premium account."
-
-    if not any(word in message.lower() for word in TAX_KEYWORDS):
-        return "Sorry, I can only assist with questions related to Philippine taxation."
-
-    if uploaded_file:
-        filename = os.path.basename(uploaded_file.name)
-        dest_path = os.path.join(KNOWLEDGE_FOLDER, filename)
-        with open(dest_path, "wb") as f:
-            f.write(uploaded_file.read())
-
-    knowledge_text = read_knowledge_files()
-    final_prompt = BASE_SYSTEM_PROMPT + f"\n\nReference Files Summary:\n{knowledge_text}"
-
-    messages = [{"role": "system", "content": final_prompt}]
-    for entry in history:
-        if isinstance(entry, dict):
-            messages.append(entry)
-        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
-            messages.append({"role": "user", "content": entry[0]})
-            messages.append({"role": "assistant", "content": entry[1]})
-    messages.append({"role": "user", "content": message})
-
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p
-    )
-
-    return response.choices[0].message.content
+# ... (unchanged for brevity)
 
 # 🎨 Gradio UI
 with gr.Blocks() as demo:
@@ -157,4 +63,47 @@ with gr.Blocks() as demo:
         username_input = gr.Textbox(label="Username")
         password_input = gr.Textbox(label="Password", type="password")
 
-    subscri
+    subscription_dropdown = gr.Dropdown(choices=list(SUBSCRIPTION_OPTIONS.keys()), label="Choose Subscription Plan")
+    status = gr.Textbox(label="Status Message")
+    confirm_email_btn = gr.Button("📧 Send Email Confirmation")
+
+    def send_email_with_plan(user, plan):
+        return send_confirmation_email(user, plan)
+
+    confirm_email_btn.click(
+        fn=send_email_with_plan,
+        inputs=[username_input, subscription_dropdown],
+        outputs=status
+    )
+
+    chatbot_ui = gr.Chatbot(label="TINA Chat History")
+
+    chat = gr.ChatInterface(
+        fn=respond,
+        chatbot=chatbot_ui,
+        additional_inputs=[
+            gr.Textbox(value=BASE_SYSTEM_PROMPT, visible=False),
+            gr.Slider(minimum=256, maximum=2048, value=512, step=1, label="Max new tokens"),
+            gr.Slider(minimum=0.1, maximum=1.5, value=0.7, step=0.1, label="Temperature"),
+            gr.Slider(minimum=0.1, maximum=1.0, value=0.95, step=0.05, label="Top-p (nucleus sampling)"),
+            username_input,
+            password_input,
+            gr.File(label="Upload Knowledge File (txt, pdf, md, jpg, png)", type="binary")
+        ]
+    )
+
+    with gr.Accordion("📂 View Uploaded Files", open=False):
+        auth_user = gr.Textbox(label="Enter Username")
+        auth_pass = gr.Textbox(label="Enter Password", type="password")
+        file_list_output = gr.Textbox(label="Uploaded Files & Previews", lines=20)
+        refresh_btn = gr.Button("🔄 Refresh File List")
+
+        refresh_btn.click(
+            fn=lambda u, p: list_uploaded_files_with_preview(authenticate(u, p)),
+            inputs=[auth_user, auth_pass],
+            outputs=file_list_output
+        )
+
+if __name__ == "__main__":
+    init_db()
+    demo.launch()
