@@ -6,20 +6,25 @@ import logging
 from dotenv import load_dotenv
 import gradio as gr
 import openai
+import pytesseract
+from PIL import Image
+import fitz  # PyMuPDF
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 DB_NAME = "tina_users.db"
+KNOWLEDGE_FOLDER = "knowledge_files"
+os.makedirs(KNOWLEDGE_FOLDER, exist_ok=True)
+
 logging.basicConfig(level=logging.INFO)
 
 # ========== DATABASE SETUP ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
+    c.execute("""CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
@@ -31,8 +36,7 @@ def init_db():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS qna_log (
+    c.execute("""CREATE TABLE IF NOT EXISTS qna_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         question TEXT NOT NULL,
         answer TEXT NOT NULL,
@@ -66,20 +70,52 @@ SYSTEM_PROMPT = (
     "and tax reform laws like TRAIN, CREATE, and Ease of Paying Taxes Act. Do not offer legal advice."
 )
 
+def read_knowledge_files():
+    texts = []
+    for fname in os.listdir(KNOWLEDGE_FOLDER):
+        path = os.path.join(KNOWLEDGE_FOLDER, fname)
+        try:
+            if fname.endswith((".txt", ".md")):
+                with open(path, "r", encoding="utf-8") as f:
+                    texts.append(f.read())
+            elif fname.endswith(".pdf"):
+                doc = fitz.open(path)
+                text = "\n".join([page.get_text() for page in doc])
+                texts.append(text)
+            elif fname.endswith((".png", ".jpg", ".jpeg")):
+                image = Image.open(path)
+                texts.append(pytesseract.image_to_string(image))
+        except Exception as e:
+            logging.warning(f"Failed to read {fname}: {e}")
+    return "\n".join(texts)
+
 def ask_tina(question, username="User"):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
+        context = read_knowledge_files()
+        if context.strip():
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Refer to the following data:\n{context}\n\nNow answer: {question}"}
+            ]
+        else:
+            messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": question}
             ]
-        )
+        response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=messages)
         answer = response.choices[0].message["content"]
-        save_qna(question, answer)
+        save_qna(question, answer, source="knowledge" if context else "chatGPT")
         return answer.strip()
     except Exception as e:
         return f"Sorry, something went wrong: {e}"
+
+def upload_and_convert(files):
+    for file in files:
+        ext = os.path.splitext(file.name)[1].lower()
+        dest_path = os.path.join(KNOWLEDGE_FOLDER, os.path.basename(file.name))
+        with open(dest_path, "wb") as f:
+            f.write(file.read())
+    return "Files uploaded and processed successfully."
 
 # ========== GRADIO UI ==========
 def greet(name):
@@ -99,7 +135,7 @@ with gr.Blocks() as demo:
     gr.Markdown("# TINA: Tax Information Navigation Assistance")
 
     with gr.Column(visible=True) as greet_section:
-        name = gr.Textbox(label="Enter your name", interactive=True)
+        name = gr.Textbox(label="Enter your name")
         greet_btn = gr.Button("Greet Me")
         greeting = gr.Textbox(label="Greeting", interactive=False)
         proceed_btn = gr.Button("Proceed to TINA", visible=False)
@@ -109,6 +145,8 @@ with gr.Blocks() as demo:
         chatbot = gr.Chatbot(label="TINA Chat", height=350)
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question here and press Enter")
         submit_btn = gr.Button("Ask TINA")
+        upload = gr.File(label="Upload Reference Files", file_types=[".pdf", ".txt", ".md", ".jpg", ".jpeg", ".png"], file_count="multiple")
+        upload_btn = gr.Button("Upload Files")
 
     state_name = gr.State()
     state_history = gr.State([])
@@ -117,8 +155,7 @@ with gr.Blocks() as demo:
     proceed_btn.click(fn=proceed_to_tina, inputs=name, outputs=[greet_section, proceed_btn, chat_section, state_name])
     submit_btn.click(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
+    upload_btn.click(fn=upload_and_convert, inputs=upload, outputs=None)
 
-# Initialize DB only once when app starts
 init_db()
-
 demo.launch()
