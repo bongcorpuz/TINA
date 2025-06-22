@@ -6,10 +6,12 @@ import tempfile
 import json
 import time
 from datetime import datetime, timedelta
-
-# NEW: Local modules for DB and email
 from database import init_db, add_user, get_user, update_subscription
 from email_confirm import send_confirmation_email
+from dotenv import load_dotenv
+
+# ✅ Load environment variables
+load_dotenv()
 
 # ✅ Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -42,17 +44,57 @@ TAX_KEYWORDS = [
     "bmbe", "books of accounts", "bir form", "registration", "tax clearance"
 ]
 
-# 📚 Read and summarize uploaded files
-# ... (unchanged for brevity)
+# 🛡️ Authentication function
+def authenticate(username, password):
+    user = get_user(username)
+    if user and user[2] == password:  # assuming user[2] = password
+        expiration_date = datetime.strptime(user[3], "%Y-%m-%d")  # assuming user[3] = expiration
+        if expiration_date >= datetime.now():
+            return user
+    return None
 
-# 🔐 Login + expiration + database auth
-# ... (unchanged for brevity)
+# 📁 Read uploaded files
+def list_uploaded_files_with_preview(user):
+    if not user:
+        return "❌ Invalid login."
+    files = os.listdir(KNOWLEDGE_FOLDER)
+    previews = []
+    for fname in files:
+        try:
+            path = os.path.join(KNOWLEDGE_FOLDER, fname)
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                head = f.read(500)
+            previews.append(f"📄 {fname}\n{head[:300]}...\n")
+        except:
+            previews.append(f"📄 {fname} (binary file preview unavailable)\n")
+    return "\n".join(previews)
 
-# 📋 Viewer function for uploaded documents with preview
-# ... (unchanged for brevity)
+# 🧠 Chatbot response logic
+def respond(message, system_prompt, max_tokens, temperature, top_p, username, password, uploaded_file):
+    user = authenticate(username, password)
+    if not user:
+        return [(message, "❌ Invalid login or expired subscription.")]
 
-# 🧠 Response function
-# ... (unchanged for brevity)
+    if not any(word in message.lower() for word in TAX_KEYWORDS):
+        return [(message, "❌ Sorry, I can only assist with questions related to Philippine taxation.")]
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message}
+    ]
+
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens
+        )
+        reply = completion.choices[0].message.content.strip()
+        return [(message, reply)]
+    except Exception as e:
+        return [(message, f"❌ Error: {e}")]
 
 # 🎨 Gradio UI
 with gr.Blocks() as demo:
