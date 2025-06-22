@@ -188,10 +188,33 @@ with gr.Blocks() as demo:
     def guest_ask(query):
         if enforce_guest_limit():
             return "Guest limit reached (5 per day). Please register to continue."
-        response = "This is a dummy reply for guest question."
+
+        context = ""
+        for filename in os.listdir(UPLOAD_DIR):
+            filepath = os.path.join(UPLOAD_DIR, filename)
+            ext = os.path.splitext(filename)[-1].lower()
+            if ext in ['.pdf', '.txt', '.md']:
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    context += f.read() + "\n"
+            elif ext in ['.jpg', '.jpeg', '.png']:
+                try:
+                    text = pytesseract.image_to_string(Image.open(filepath))
+                    context += text + "\n"
+                except:
+                    pass
+
+        prompt = f"You are TINA, the Tax Information Navigation Assistant. You ONLY answer questions related to Philippine taxation such as BIR forms, deadlines, tax types, and compliance.\nUse only official sources: NIRC, BIR RRs, RMCs, issuances.\nIf question is not related to PH tax, reply: 'Sorry, I can only assist with questions related to Philippine taxation.'\n\nContext:\n{context}\n\nQuestion: {query}\nAnswer:"
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )["choices"][0]["message"]["content"]
+        except Exception as e:
+            response = f"Error: {str(e)}"
+
         conn = sqlite3.connect("query_log.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO logs (username, query, context, response) VALUES (?, ?, ?, ?)", ("guest", query, "", response))
+        cursor.execute("INSERT INTO logs (username, query, context, response) VALUES (?, ?, ?, ?)", ("guest", query, context[:1000], response))
         conn.commit()
         conn.close()
         return response
