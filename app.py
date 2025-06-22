@@ -1,91 +1,189 @@
-import gradio as gr
 import os
+import sqlite3
+from datetime import datetime, timedelta
+import bcrypt
+import logging
 from dotenv import load_dotenv
-from database import init_db, add_user, get_user, verify_password
-from email_confirm import send_confirmation_email
+from PIL import Image
+import pytesseract
+import fitz  # PyMuPDF
+import openai
 
 # Load environment variables
 load_dotenv()
 
+DB_NAME = "tina_users.db"
+KNOWLEDGE_FOLDER = "knowledge_files"
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Ensure knowledge folder exists
+os.makedirs(KNOWLEDGE_FOLDER, exist_ok=True)
+
 # Initialize database
-init_db()
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        email_confirmed INTEGER DEFAULT 0,
+        subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
+        subscription_expires TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS qna_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        source TEXT DEFAULT 'chatGPT',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    c.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_update_timestamp
+    AFTER UPDATE ON users
+    BEGIN
+        UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_username ON users(username)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_email ON users(email)")
+    conn.commit()
+    conn.close()
+    logging.info("Database initialized successfully.")
+    create_default_admin()
 
-# Login system
-SESSION_STATE = {"username": None, "role": None}
+def hash_password(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def login(username, password):
-    user = get_user(username)
-    if user and verify_password(password, user['password']):
-        SESSION_STATE["username"] = user["username"]
-        SESSION_STATE["role"] = user["role"]
-        return f"✅ Welcome back, {username}!"
-    return "❌ Invalid username or password."
+def verify_password(password, hashed):
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def register(username, password, email, subscription_level):
-    success = add_user(username, password, email, subscription_level)
-    if success:
-        send_confirmation_email(email)
-        return f"✅ Registration successful! Confirmation email sent to {email}."
-    return "❌ Registration failed. Username or email may already be taken."
+def add_user(username, password, email, subscription_level):
+    days = {'monthly': 30, 'quarterly': 90, 'yearly': 365}
+    if subscription_level not in days:
+        logging.warning("Invalid subscription level provided.")
+        return False
+    expires = (datetime.now() + timedelta(days=days[subscription_level])).strftime("%Y-%m-%d")
+    hashed_pw = hash_password(password)
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("INSERT INTO users (username, password, email, subscription_level, subscription_expires) VALUES (?, ?, ?, ?, ?)",
+                  (username, hashed_pw, email, subscription_level, expires))
+        conn.commit()
+        conn.close()
+        logging.info(f"User {username} added successfully.")
+        return True
+    except sqlite3.IntegrityError as e:
+        logging.error(f"Failed to add user {username}: {e}")
+        return False
 
-def logout():
-    SESSION_STATE["username"] = None
-    SESSION_STATE["role"] = None
-    return "✅ Logged out successfully."
+def get_user(username):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "id": row[0],
+            "username": row[1],
+            "password": row[2],
+            "email": row[3],
+            "email_confirmed": bool(row[4]),
+            "subscription_level": row[5],
+            "subscription_expires": row[6],
+            "role": row[7],
+            "created_at": row[8],
+            "updated_at": row[9]
+        }
+    return None
 
-# Main ChatBot Prompt
-SYSTEM_PROMPT = (
-    "You are TINA, the Tax Information Navigation Assistant. "
-    "You ONLY answer questions related to Philippine taxation such as BIR forms, deadlines, tax types, and compliance. "
-    "Base your answers strictly on publicly available resources like the NIRC, BIR Revenue Regulations (RRs), Revenue Memorandum Circulars (RMCs), and official BIR issuances. "
-    "If asked anything not related to Philippine taxation, politely respond with: "
-    "'Sorry, I can only assist with questions related to Philippine taxation.'"
-)
+def update_subscription(username, new_level):
+    days = {'monthly': 30, 'quarterly': 90, 'yearly': 365}
+    if new_level not in days:
+        logging.warning("Invalid subscription level provided for update.")
+        return
+    expires = (datetime.now() + timedelta(days=days[new_level])).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE users SET subscription_level = ?, subscription_expires = ? WHERE username = ?",
+              (new_level, expires, username))
+    conn.commit()
+    conn.close()
+    logging.info(f"Subscription updated for {username} to {new_level}.")
 
-def chatbot_respond(message, history, system_message, max_tokens, temperature, top_p):
-    # Example simple validation
-    if SESSION_STATE['username'] is None:
-        return "⚠️ You must log in to chat with TINA."
-    tax_keywords = ["bir", "tax", "vat", "income", "1701", "2550", "0619", "withholding", "rdo", "tin", "philippine"]
-    if not any(word in message.lower() for word in tax_keywords):
-        return "Sorry, I can only assist with questions related to Philippine taxation."
+def confirm_email(username):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE users SET email_confirmed = 1 WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
+    logging.info(f"Email confirmed for user {username}.")
 
-    # Simulated response (replace with OpenAI call)
-    return f"[Simulated TINA Reply to: {message}]"
+def create_default_admin():
+    admin_username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+    admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
+    user = get_user(admin_username)
+    if user is None:
+        success = add_user(admin_username, admin_password, admin_email, "yearly")
+        if success:
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("UPDATE users SET role = 'admin' WHERE username = ?", (admin_username,))
+            conn.commit()
+            conn.close()
+            logging.info("Default admin account created.")
 
-# Gradio app
-with gr.Blocks() as demo:
-    gr.Markdown("## 🧾 TINA – Tax Information Navigation Assistant 🇵🇭")
-    
-    with gr.Tab("Login"):
-        username = gr.Textbox(label="Username")
-        password = gr.Textbox(label="Password", type="password")
-        login_btn = gr.Button("Login")
-        login_output = gr.Textbox()
-        login_btn.click(login, inputs=[username, password], outputs=login_output)
+def process_uploaded_file(upload_path):
+    try:
+        filename = os.path.basename(upload_path)
+        name, ext = os.path.splitext(filename)
+        output_path = os.path.join(KNOWLEDGE_FOLDER, f"{name}.txt")
+        if ext.lower() in [".jpg", ".jpeg", ".png"]:
+            image = Image.open(upload_path)
+            text = pytesseract.image_to_string(image)
+        elif ext.lower() == ".pdf":
+            text = ""
+            with fitz.open(upload_path) as doc:
+                for page in doc:
+                    text += page.get_text()
+        elif ext.lower() in [".txt", ".md"]:
+            with open(upload_path, "r", encoding="utf-8") as f:
+                text = f.read()
+        else:
+            logging.warning(f"Unsupported file type: {ext}")
+            return None
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        logging.info(f"Processed and saved: {output_path}")
+        return output_path
+    except Exception as e:
+        logging.error(f"Error processing file {upload_path}: {e}")
+        return None
 
-    with gr.Tab("Register"):
-        new_user = gr.Textbox(label="Username")
-        new_pass = gr.Textbox(label="Password", type="password")
-        new_email = gr.Textbox(label="Email")
-        new_level = gr.Dropdown(["monthly", "quarterly", "yearly"], label="Subscription")
-        reg_btn = gr.Button("Register")
-        reg_output = gr.Textbox()
-        reg_btn.click(register, inputs=[new_user, new_pass, new_email, new_level], outputs=reg_output)
+def is_valid_tax_question(text):
+    tax_keywords = os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
+    return any(keyword.lower() in text.lower() for keyword in tax_keywords)
 
-    with gr.Tab("Chat with TINA"):
-        chatbot = gr.ChatInterface(fn=chatbot_respond,
-            additional_inputs=[
-                gr.Textbox(value=SYSTEM_PROMPT, label="System message"),
-                gr.Slider(minimum=256, maximum=2048, value=512, step=1, label="Max new tokens"),
-                gr.Slider(minimum=0.1, maximum=1.0, value=0.7, step=0.1, label="Temperature"),
-                gr.Slider(minimum=0.1, maximum=1.0, value=0.95, step=0.05, label="Top-p (nucleus sampling)")
-            ])
-
-    with gr.Tab("Logout"):
-        logout_btn = gr.Button("Logout")
-        logout_output = gr.Textbox()
-        logout_btn.click(logout, outputs=logout_output)
-
-if __name__ == "__main__":
-    demo.launch(share=True)
+def save_qna(question, answer, source="chatGPT"):
+    if not is_valid_tax_question(question):
+        logging.warning("Skipped saving non-tax question.")
+        return
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO qna_log (question, answer, source) VALUES (?, ?, ?)", (question, answer, source))
+    conn.commit()
+    conn.close()
+    logging.info(f"QnA stored: {question} → {source}")
