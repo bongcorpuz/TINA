@@ -1,8 +1,9 @@
-# database.py
 import sqlite3
 from datetime import datetime, timedelta
 
 DB_NAME = "tina_users.db"
+
+# 🔧 Initialize database and create tables
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -10,53 +11,82 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
-            password TEXT,
-            email TEXT,
-            role TEXT,
-            subscription_plan TEXT,
-            expiration_date TEXT,
-            is_confirmed INTEGER DEFAULT 0
+            password TEXT NOT NULL,
+            email TEXT NOT NULL,
+            subscription TEXT,
+            expires TEXT,
+            confirmed INTEGER DEFAULT 0
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            amount REAL,
+            method TEXT,
+            timestamp TEXT
         )
     ''')
     conn.commit()
     conn.close()
 
-def add_user(username, password, email, role, plan):
-    expiration = datetime.now() + {
-        'Monthly': timedelta(days=30),
-        'Quarterly': timedelta(days=90),
-        'Yearly': timedelta(days=365),
-    }.get(plan, timedelta(days=30))
+# ➕ Add new user
+
+def add_user(username, password, email, subscription):
+    days = {"Monthly (₱150)": 30, "Quarterly (₱400)": 90, "Yearly (₱1500)": 365}.get(subscription, 30)
+    expires = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)",
-              (username, password, email, role, plan, expiration.strftime("%Y-%m-%d")))
+    c.execute("INSERT INTO users (username, password, email, subscription, expires) VALUES (?, ?, ?, ?, ?)",
+              (username, password, email, subscription, expires))
     conn.commit()
     conn.close()
 
-# email_confirm.py
-import smtplib
-from email.message import EmailMessage
+# 🔍 Get user info
 
-def send_confirmation_email(to_email, username):
-    msg = EmailMessage()
-    msg['Subject'] = 'Confirm your TINA Premium Account'
-    msg['From'] = 'your.email@example.com'
-    msg['To'] = to_email
-    msg.set_content(f"""
-Hi {username},
+def get_user(username):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "username": row[0],
+            "password": row[1],
+            "email": row[2],
+            "subscription": row[3],
+            "expires": row[4],
+            "confirmed": bool(row[5])
+        }
+    return None
 
-Please confirm your premium access by replying to this email or clicking the link below (in future upgrade).
+# ✅ Update subscription expiration
 
-Thank you,
-TINA Support Team
-""")
+def update_subscription(username, days):
+    new_expiry = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE users SET expires = ? WHERE username = ?", (new_expiry, username))
+    conn.commit()
+    conn.close()
 
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login('your.email@example.com', 'your_app_password')
-            smtp.send_message(msg)
-        return True
-    except Exception as e:
-        print("Email error:", e)
-        return False
+# ✅ Confirm email
+
+def confirm_user_email(username):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE users SET confirmed = 1 WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
+
+# 💰 Record payment
+
+def record_payment(username, amount, method):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO payments (username, amount, method, timestamp) VALUES (?, ?, ?, ?)",
+              (username, amount, method, timestamp))
+    conn.commit()
+    conn.close()
