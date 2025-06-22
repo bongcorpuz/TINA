@@ -116,7 +116,7 @@ def ask_tina(question, username="User"):
         if ref:
             messages.insert(1, {"role": "system", "content": f"Reference material:\n{ref[:3000]}"})
 
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
@@ -131,7 +131,7 @@ init_db()
 
 # ========== GRADIO UI ==========
 with gr.Blocks() as demo:
-    chatbot = gr.Chatbot(label="TINA Chat")
+    chatbot = gr.Chatbot(label="TINA Chat", value=[], elem_id="chatbot")
     file_upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)")
     user_input = gr.Textbox(placeholder="Type your tax question and press Enter", label="Your Question")
 
@@ -140,9 +140,10 @@ with gr.Blocks() as demo:
 
     def handle_chat(message, history):
         answer = ask_tina(message)
-        return answer
+        history.append((message, answer))
+        return history
 
     file_upload.change(fn=handle_file, inputs=file_upload, outputs=chatbot)
-    user_input.submit(fn=handle_chat, inputs=user_input, outputs=chatbot)
+    user_input.submit(fn=handle_chat, inputs=[user_input, chatbot], outputs=chatbot)
 
 demo.launch()
