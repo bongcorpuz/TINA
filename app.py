@@ -10,15 +10,14 @@ import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 
-# Load environment variables
+# Load .env
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
 
-# ========== DATABASE SETUP ==========
+# ========== DATABASE ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -131,7 +130,9 @@ def tina_chat(question, username, history):
 def handle_upload(files):
     return "\n".join([extract_text_from_file(f) for f in files])
 
-# ========== UI LAYOUT ==========
+# ========== INIT APP ==========
+init_db()
+
 with gr.Blocks() as demo:
     gr.Markdown("# TINA: Tax Information Navigation Assistance")
 
@@ -143,7 +144,7 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=False) as chat_section:
         gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="messages")
+        chatbot = gr.Chatbot(label="TINA Chat", type="messages")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
         upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
@@ -158,8 +159,4 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-# ========== ENTRY POINT ==========
-init_db()
-
-if __name__ == "__main__":
-    demo.launch()
+demo.launch()
