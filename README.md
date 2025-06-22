@@ -5,7 +5,7 @@ colorFrom: yellow
 colorTo: purple
 sdk: gradio
 sdk_version: 5.34.2
-app_file: tina_app.py
+app_file: app.py
 pinned: false
 license: mit
 short_description: Tax Information Navigation Assistant
@@ -26,7 +26,7 @@ TINA is your helpful assistant for Philippine tax compliance and law guidance.
 ## 🧪 Run Locally
 ```bash
 pip install -r requirements.txt
-python tina_app.py
+python app.py
 ```
 
 ## 🔐 Setup
@@ -36,4 +36,4 @@ OPENAI_API_KEY=your-openai-key
 ```
 
 ## ✅ Automated CI on Hugging Face
-This app runs tests on each push via `.huggingface/huggingface.yml
+This app runs tests on each push via `.huggingface/huggingface.yml`
