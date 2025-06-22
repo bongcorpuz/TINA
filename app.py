@@ -62,6 +62,8 @@ MAX_FILE_SIZE_MB = 5
 
 GUEST_LIMIT = 5
 
+session = {}
+
 def is_valid_file(file):
     ext = os.path.splitext(file.name)[-1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -146,81 +148,40 @@ def get_guest_usage():
 def enforce_guest_limit():
     return get_guest_usage() >= GUEST_LIMIT
 
-# UI Block
-with gr.Blocks() as demo:
-    with gr.Tab("TINA"):
-        username = gr.Textbox(label="Username", placeholder="Enter your username")
-        password = gr.Textbox(label="Password", type="password", placeholder="Enter your password")
-        login_btn = gr.Button("Login / Continue as Guest")
-        logout_btn = gr.Button("Logout")
-        plan_display = gr.Textbox(label="Current Plan", interactive=False)
-        file_input = gr.File(label="Upload File (PDF/TXT/IMG, optional)", file_types=[".pdf", ".txt", ".md", ".jpg", ".png"])
-        upload_button = gr.UploadButton(label="Upload")
-        user_query = gr.Textbox(label="Your Tax Question", placeholder="Ask something about PH taxation...")
-        submit_btn = gr.Button("Ask TINA")
-        output = gr.Textbox(label="TINA's Answer")
+def hash_password(password):
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    with gr.Tab("Guest Access"):
-        guest_query = gr.Textbox(label="Guest Tax Question")
-        guest_submit = gr.Button("Ask as Guest")
-        guest_output = gr.Textbox(label="TINA Guest Reply")
+def verify_password(password, hashed):
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
-    with gr.Tab("Admin Panel"):
-        admin_pass = gr.Textbox(label="Admin Password", type="password")
-        admin_user_filter = gr.Textbox(label="Filter Logs by Username", placeholder="Enter username (optional)")
-        admin_date_filter = gr.Textbox(label="Filter Logs by Date (YYYY-MM-DD)", placeholder="Optional date filter")
-        admin_check = gr.Button("View Logs and Summaries")
-        admin_output = gr.Textbox(label="Logs + Summaries", lines=20)
-        log_id_to_delete = gr.Number(label="Delete Log Entry ID")
-        delete_log_btn = gr.Button("Delete Log Entry")
-        export_btn = gr.Button("Export Logs to CSV")
-        export_msg = gr.Textbox(label="Export Status")
+def login_user(user, pw):
+    conn = sqlite3.connect("query_log.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT password, subscription_level, subscription_expires FROM subscribers WHERE username = ?", (user,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and verify_password(pw, row[0]):
+        expires = row[2] or ""
+        plan = row[1]
+        if expires and datetime.strptime(expires, "%Y-%m-%d") < datetime.now():
+            return None, "Subscription expired."
+        session["username"] = user
+        session["plan"] = plan
+        session["expires"] = expires
+        return f"Logged in as {user} | Plan: {plan} | Expires: {expires}", ""
+    return None, "Invalid credentials."
 
-    session = {"username": None, "plan": None}
+def renew_subscription(user, plan):
+    duration = PLAN_DURATIONS.get(plan)
+    if not duration:
+        return f"Invalid plan: {plan}"
+    new_expiry = (datetime.now() + timedelta(days=duration)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect("query_log.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE subscribers SET subscription_level = ?, subscription_expires = ? WHERE username = ?", (plan, new_expiry, user))
+    conn.commit()
+    conn.close()
+    return f"Subscription for {user} renewed to {plan} until {new_expiry}."
 
-    def run_admin(password, user_filter="", date_filter=""):
-        if password != ADMIN_PASS:
-            return "Access denied."
-        logs = view_logs(user_filter, date_filter)
-        summaries = view_summaries()
-        return logs + "\n\n" + summaries
-
-    def guest_ask(query):
-        if enforce_guest_limit():
-            return "Guest limit reached (5 per day). Please register to continue."
-
-        context = ""
-        for filename in os.listdir(UPLOAD_DIR):
-            filepath = os.path.join(UPLOAD_DIR, filename)
-            ext = os.path.splitext(filename)[-1].lower()
-            if ext in ['.pdf', '.txt', '.md']:
-                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                    context += f.read() + "\n"
-            elif ext in ['.jpg', '.jpeg', '.png']:
-                try:
-                    text = pytesseract.image_to_string(Image.open(filepath))
-                    context += text + "\n"
-                except:
-                    pass
-
-        prompt = f"You are TINA, the Tax Information Navigation Assistant. You ONLY answer questions related to Philippine taxation such as BIR forms, deadlines, tax types, and compliance.\nUse only official sources: NIRC, BIR RRs, RMCs, issuances.\nIf question is not related to PH tax, reply: 'Sorry, I can only assist with questions related to Philippine taxation.'\n\nContext:\n{context}\n\nQuestion: {query}\nAnswer:"
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )["choices"][0]["message"]["content"]
-        except Exception as e:
-            response = f"Error: {str(e)}"
-
-        conn = sqlite3.connect("query_log.db")
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO logs (username, query, context, response) VALUES (?, ?, ?, ?)", ("guest", query, context[:1000], response))
-        conn.commit()
-        conn.close()
-        return response
-
-    admin_check.click(fn=run_admin, inputs=[admin_pass, admin_user_filter, admin_date_filter], outputs=admin_output)
-    guest_submit.click(fn=guest_ask, inputs=guest_query, outputs=guest_output)
-
-# Launch app
-demo.launch(share=True)
+# UI Block (add login logic)
+    login_btn.click(fn=login_user, inputs=[username, password], outputs=[plan_display, output])
