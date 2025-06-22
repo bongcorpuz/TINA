@@ -112,4 +112,4 @@ def save_qna(question, answer, source="chatGPT"):
 
 # === OPENAI QUERY ===
 SYSTEM_PROMPT = (
-    "Yo
+    "Yo"
