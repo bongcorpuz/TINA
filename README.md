@@ -1,3 +1,16 @@
+---
+title: TINA
+emoji: 📄
+colorFrom: yellow
+colorTo: purple
+sdk: gradio
+sdk_version: 5.34.2
+app_file: tina_app.py
+pinned: false
+license: mit
+short_description: Tax Information Navigation Assistant
+---
+
 ![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
 
 # TINA: Tax Information Navigation Assistant
@@ -23,4 +36,4 @@ OPENAI_API_KEY=your-openai-key
 ```
 
 ## ✅ Automated CI on Hugging Face
-This app runs tests on each push via `.huggingface/huggingface.yml`
+This app runs tests on each push via `.huggingface/huggingface.yml
