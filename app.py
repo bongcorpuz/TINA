@@ -10,11 +10,11 @@ import gradio as gr
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
-from openai import OpenAI
+import openai
 
 # ========== CONFIGURATION ==========
 load_dotenv()
-client = OpenAI()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
@@ -116,7 +116,7 @@ def ask_tina(question, username="User"):
         if ref:
             messages.insert(1, {"role": "system", "content": f"Reference material:\n{ref[:3000]}"})
 
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
