@@ -6,7 +6,7 @@ import logging
 from dotenv import load_dotenv
 from PIL import Image
 import pytesseract
-import fitz  # PyMuPDF
+import pdfplumber  # Replaces fitz (PyMuPDF)
 import openai
 import interface  # Automatically launches Gradio interface
 
@@ -22,7 +22,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Ensure knowledge folder exists
 os.makedirs(KNOWLEDGE_FOLDER, exist_ok=True)
 
-# Initialize database
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -157,9 +156,11 @@ def process_uploaded_file(upload_path):
             text = pytesseract.image_to_string(image)
         elif ext.lower() == ".pdf":
             text = ""
-            with fitz.open(upload_path) as doc:
-                for page in doc:
-                    text += page.get_text()
+            with pdfplumber.open(upload_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
         elif ext.lower() in [".txt", ".md"]:
             with open(upload_path, "r", encoding="utf-8") as f:
                 text = f.read()
