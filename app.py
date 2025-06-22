@@ -134,7 +134,7 @@ def handle_upload(files):
 init_db()
 
 with gr.Blocks() as demo:
-    gr.Markdown("# TINA: Tax Information Navigation Assistance")
+    gr.Markdown("# TINA: Tax Information Navigation Assistant")
 
     with gr.Column(visible=True) as greet_section:
         name = gr.Textbox(label="Enter your name")
@@ -161,6 +161,5 @@ with gr.Blocks() as demo:
     question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
-# Launch safely with queue mode
-if __name__ == "__main__":
-    demo.queue().launch()
+# DO NOT use launch() on Hugging Face. Just expose `demo` object.
+demo.queue()
