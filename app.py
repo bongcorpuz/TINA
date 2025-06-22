@@ -12,6 +12,7 @@ import hashlib
 import bcrypt
 import csv
 from datetime import datetime, timedelta
+import json
 
 # Load API key from .env
 load_dotenv()
@@ -223,7 +224,7 @@ with gr.Blocks() as demo:
     user_query = gr.Textbox(label="Your Tax Question", placeholder="Ask something about PH taxation...")
     submit_btn = gr.Button("Ask TINA")
     output = gr.Textbox(label="TINA's Answer")
-    gr.Markdown("\ud83d\udc49 No account? Register or upgrade at [your WordPress site].")
+    gr.Markdown("👉 No account? Register or upgrade at [your WordPress site].")
 
     session = {"username": None}
 
@@ -244,4 +245,4 @@ with gr.Blocks() as demo:
     login_btn.click(fn=handle_login, inputs=[username, password], outputs=output)
     submit_btn.click(fn=handle_submit, inputs=[user_query, file_input], outputs=output)
 
-demo.launch()
+demo.launch(share=True)
