@@ -14,7 +14,7 @@ from openai import OpenAI
 
 # ========== CONFIGURATION ==========
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI()
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
