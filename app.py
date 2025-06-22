@@ -8,6 +8,7 @@ from PIL import Image
 import pytesseract
 import fitz  # PyMuPDF
 import openai
+import interface  # Automatically launches Gradio interface
 
 # Load environment variables
 load_dotenv()
