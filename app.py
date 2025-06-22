@@ -182,5 +182,5 @@ def renew_subscription(user, plan):
     conn.close()
     return f"Subscription for {user} renewed to {plan} until {new_expiry}."
 
-# Use correct import for chat model
-from openai import ChatCompletion
+# Fixed import: removed broken from-import
+# Use openai.ChatCompletion.create() instead of direct import
