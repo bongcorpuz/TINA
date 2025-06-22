@@ -1,8 +1,12 @@
 import sqlite3
 from datetime import datetime, timedelta
 import bcrypt
+import logging
 
 DB_NAME = "tina_users.db"
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize database
 def init_db():
@@ -11,17 +15,31 @@ def init_db():
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT,
-        email TEXT UNIQUE,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
         email_confirmed INTEGER DEFAULT 0,
-        subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')),
-        subscription_expires TEXT,
-        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium'))
+        subscription_level TEXT CHECK(subscription_level IN ('monthly', 'quarterly', 'yearly')) NOT NULL,
+        subscription_expires TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    # Trigger for updated_at timestamp
+    c.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_update_timestamp
+    AFTER UPDATE ON users
+    BEGIN
+        UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+    """)
+    # Indexes for performance
+    c.execute("CREATE INDEX IF NOT EXISTS idx_username ON users(username)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_email ON users(email)")
     conn.commit()
     conn.close()
+    logging.info("Database initialized successfully.")
 
 # Hash password securely
 def hash_password(password):
@@ -34,17 +52,22 @@ def verify_password(password, hashed):
 # Add new user
 def add_user(username, password, email, subscription_level):
     days = {'monthly': 30, 'quarterly': 90, 'yearly': 365}
+    if subscription_level not in days:
+        logging.warning("Invalid subscription level provided.")
+        return False
     expires = (datetime.now() + timedelta(days=days[subscription_level])).strftime("%Y-%m-%d")
     hashed_pw = hash_password(password)
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.execute("INSERT INTO users (username, password, email, subscription_level, subscription_expires, role) VALUES (?, ?, ?, ?, ?, ?)",
-                  (username, hashed_pw, email, subscription_level, expires, 'user'))
+        c.execute("INSERT INTO users (username, password, email, subscription_level, subscription_expires) VALUES (?, ?, ?, ?, ?)",
+                  (username, hashed_pw, email, subscription_level, expires))
         conn.commit()
         conn.close()
+        logging.info(f"User {username} added successfully.")
         return True
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as e:
+        logging.error(f"Failed to add user {username}: {e}")
         return False
 
 # Get user by username
@@ -63,13 +86,18 @@ def get_user(username):
             "email_confirmed": bool(row[4]),
             "subscription_level": row[5],
             "subscription_expires": row[6],
-            "role": row[7]
+            "role": row[7],
+            "created_at": row[8],
+            "updated_at": row[9]
         }
     return None
 
 # Update subscription manually (admin use)
 def update_subscription(username, new_level):
     days = {'monthly': 30, 'quarterly': 90, 'yearly': 365}
+    if new_level not in days:
+        logging.warning("Invalid subscription level provided for update.")
+        return
     expires = (datetime.now() + timedelta(days=days[new_level])).strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -77,6 +105,7 @@ def update_subscription(username, new_level):
               (new_level, expires, username))
     conn.commit()
     conn.close()
+    logging.info(f"Subscription updated for {username} to {new_level}.")
 
 # Confirm user's email
 def confirm_email(username):
@@ -85,3 +114,4 @@ def confirm_email(username):
     c.execute("UPDATE users SET email_confirmed = 1 WHERE username = ?", (username,))
     conn.commit()
     conn.close()
+    logging.info(f"Email confirmed for user {username}.")
