@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 import hashlib
 import bcrypt
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Load API key from .env
 load_dotenv()
@@ -53,6 +53,12 @@ conn.commit()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+PLAN_DURATIONS = {
+    "monthly": 30,
+    "quarterly": 90,
+    "annual": 365
+}
+
 def register_user(username, password):
     try:
         hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -76,6 +82,14 @@ def check_subscription(username):
             if datetime.strptime(expires, "%Y-%m-%d") >= datetime.today():
                 return True
     return False
+
+def activate_subscription(username, plan):
+    if plan not in PLAN_DURATIONS:
+        return False
+    new_expiry = (datetime.today() + timedelta(days=PLAN_DURATIONS[plan])).strftime("%Y-%m-%d")
+    c.execute("UPDATE subscribers SET subscription_level = ?, subscription_expires = ? WHERE username = ?", (plan, new_expiry, username))
+    conn.commit()
+    return True
 
 def guest_limit_reached():
     today = datetime.today().strftime('%Y-%m-%d')
@@ -203,5 +217,4 @@ def chat_with_tina(user_input, file=None, username=None):
     except Exception as e:
         return f"Error: {e}"
 
-# Gradio interface still needs to wire the username into the chat_with_tina inputs.
-# Payment integration via PayMongo to be handled in frontend UI or webhook listener.
+# WordPress + PayMongo integration should POST plan + username to webhook.
