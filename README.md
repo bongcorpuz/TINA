@@ -1,14 +1,16 @@
----
-title: TINA
-emoji: 💬
-colorFrom: yellow
-colorTo: purple
-sdk: gradio
-sdk_version: 5.0.1
-app_file: app.py
-pinned: false
-license: mit
-short_description: Tax Information Navigation Assisstant
----
+![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
 
-An example chatbot using [Gradio](https://gradio.app), [`huggingface_hub`](https://huggingface.co/docs/huggingface_hub/v0.22.2/en/index), and the [Hugging Face Inference API](https://huggingface.co/docs/api-inference/index).
+# TINA: Tax Information Navigation Assistant
+
+TINA is your helpful assistant for Philippine tax compliance and law guidance.
+
+## 🚀 Features
+- Chatbot powered by OpenAI
+- Upload and extract .txt/.pdf/.jpg for tax content
+- Logs Q&A to SQLite
+- Hugging Face CI/CD integration
+
+## 🧪 Run Locally
+```bash
+pip install -r requirements.txt
+python tina_app.py
