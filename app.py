@@ -60,6 +60,8 @@ PLAN_DURATIONS = {
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".jpg", ".jpeg", ".png"}
 MAX_FILE_SIZE_MB = 5
 
+GUEST_LIMIT = 5
+
 def is_valid_file(file):
     ext = os.path.splitext(file.name)[-1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -132,6 +134,18 @@ def view_summaries():
     conn.close()
     return "\n\n".join([f"{r[0][:10]}...: {r[1]}" for r in rows]) or "No summaries found."
 
+def get_guest_usage():
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect("query_log.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest' AND date(timestamp) = ?", (today,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def enforce_guest_limit():
+    return get_guest_usage() >= GUEST_LIMIT
+
 # UI Block
 with gr.Blocks() as demo:
     with gr.Tab("TINA"):
@@ -146,6 +160,11 @@ with gr.Blocks() as demo:
         submit_btn = gr.Button("Ask TINA")
         output = gr.Textbox(label="TINA's Answer")
 
+    with gr.Tab("Guest Access"):
+        guest_query = gr.Textbox(label="Guest Tax Question")
+        guest_submit = gr.Button("Ask as Guest")
+        guest_output = gr.Textbox(label="TINA Guest Reply")
+
     with gr.Tab("Admin Panel"):
         admin_pass = gr.Textbox(label="Admin Password", type="password")
         admin_user_filter = gr.Textbox(label="Filter Logs by Username", placeholder="Enter username (optional)")
@@ -157,7 +176,7 @@ with gr.Blocks() as demo:
         export_btn = gr.Button("Export Logs to CSV")
         export_msg = gr.Textbox(label="Export Status")
 
-    session = {"username": None}
+    session = {"username": None, "plan": None}
 
     def run_admin(password, user_filter="", date_filter=""):
         if password != ADMIN_PASS:
@@ -166,7 +185,19 @@ with gr.Blocks() as demo:
         summaries = view_summaries()
         return logs + "\n\n" + summaries
 
+    def guest_ask(query):
+        if enforce_guest_limit():
+            return "Guest limit reached (5 per day). Please register to continue."
+        response = "This is a dummy reply for guest question."
+        conn = sqlite3.connect("query_log.db")
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO logs (username, query, context, response) VALUES (?, ?, ?, ?)", ("guest", query, "", response))
+        conn.commit()
+        conn.close()
+        return response
+
     admin_check.click(fn=run_admin, inputs=[admin_pass, admin_user_filter, admin_date_filter], outputs=admin_output)
+    guest_submit.click(fn=guest_ask, inputs=guest_query, outputs=guest_output)
 
 # Launch app
 demo.launch(share=True)
