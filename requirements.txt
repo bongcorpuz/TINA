@@ -6,6 +6,5 @@ pdfplumber
 openai>=1.0.0
 gradio
 bcrypt
-fitz
 sqlite-utils
 python-dotenv
