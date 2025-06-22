@@ -10,11 +10,11 @@ import gradio as gr
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
-import openai
+from openai import OpenAI  # updated
 
 # ========== CONFIGURATION ==========
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI()  # updated OpenAI client
 DB_NAME = "tina_users.db"
 REFERENCE_FILE = "reference_text.txt"
 logging.basicConfig(level=logging.INFO)
@@ -116,7 +116,7 @@ def ask_tina(question, username="User"):
         if ref:
             messages.insert(1, {"role": "system", "content": f"Reference material:\n{ref[:3000]}"})
 
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
@@ -131,7 +131,7 @@ init_db()
 
 # ========== GRADIO UI ==========
 with gr.Blocks() as demo:
-    chatbot = gr.Chatbot(label="TINA Chat", value=[], elem_id="chatbot")
+    chatbot = gr.Chatbot(label="TINA Chat", value=[], elem_id="chatbot", type="markdown")
     file_upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)")
     user_input = gr.Textbox(placeholder="Type your tax question and press Enter", label="Your Question")
 
@@ -140,6 +140,7 @@ with gr.Blocks() as demo:
 
     def handle_chat(message, history):
         answer = ask_tina(message)
+        history = history or []
         history.append((message, answer))
         return history
 
