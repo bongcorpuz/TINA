@@ -160,11 +160,12 @@ with gr.Blocks() as demo:
         password_input = gr.Textbox(label="Password", type="password")
 
     subscription_dropdown = gr.Dropdown(choices=list(SUBSCRIPTION_OPTIONS.keys()), label="Choose Subscription Plan")
+    status = gr.Textbox(label="Status Message")
     confirm_email_btn = gr.Button("📧 Send Email Confirmation")
     confirm_email_btn.click(
         lambda u: send_confirmation_email(u),
         inputs=[username_input],
-        outputs=None
+        outputs=status
     )
 
     chat = gr.ChatInterface(
