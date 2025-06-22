@@ -4,9 +4,6 @@ from datetime import datetime, timedelta
 import bcrypt
 import logging
 from dotenv import load_dotenv
-from PIL import Image
-import pytesseract
-import fitz  # PyMuPDF
 import gradio as gr
 import openai
 
@@ -15,13 +12,9 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 DB_NAME = "tina_users.db"
-KNOWLEDGE_FOLDER = "knowledge_files"
+logging.basicConfig(level=logging.INFO)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-os.makedirs(KNOWLEDGE_FOLDER, exist_ok=True)
-
-# === DATABASE INIT ===
+# ========== DATABASE SETUP ==========
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -37,8 +30,7 @@ def init_db():
         role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'premium')),
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
+    )""")
     c.execute("""
     CREATE TABLE IF NOT EXISTS qna_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,57 +38,13 @@ def init_db():
         answer TEXT NOT NULL,
         source TEXT DEFAULT 'chatGPT',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-    c.execute("""
-    CREATE TRIGGER IF NOT EXISTS trg_update_timestamp
-    AFTER UPDATE ON users
-    BEGIN
-        UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-    END;
-    """)
+    )""")
     conn.commit()
     conn.close()
-    create_default_admin()
-    logging.info("Database initialized successfully.")
-
-def create_default_admin():
-    username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
-    password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
-    email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
-    if get_user(username) is None:
-        add_user(username, password, email, "yearly")
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("UPDATE users SET role = 'admin' WHERE username = ?", (username,))
-        conn.commit()
-        conn.close()
-        logging.info("Default admin account created.")
+    logging.info("Database initialized.")
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-def add_user(username, password, email, subscription_level):
-    days = {"monthly": 30, "quarterly": 90, "yearly": 365}
-    expires = (datetime.now() + timedelta(days=days[subscription_level])).strftime("%Y-%m-%d")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("INSERT INTO users (username, password, email, subscription_level, subscription_expires) VALUES (?, ?, ?, ?, ?)",
-                  (username, hash_password(password), email, subscription_level, expires))
-        conn.commit()
-        conn.close()
-        logging.info(f"User {username} added.")
-    except sqlite3.IntegrityError:
-        logging.warning(f"User {username} already exists.")
-
-def get_user(username):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username = ?", (username,))
-    row = c.fetchone()
-    conn.close()
-    return row
 
 def is_valid_tax_question(text):
     keywords = os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
@@ -110,34 +58,67 @@ def save_qna(question, answer, source="chatGPT"):
     conn.commit()
     conn.close()
 
-# === OPENAI LOGIC ===
-SYSTEM_PROMPT = """
-You are TINA, the Tax Information Navigation Assistant.
-You are helpful, polite, and specialize in answering questions about Philippine taxation.
-Base your responses on publicly available tax laws such as the NIRC, BIR Revenue Regulations, RMCs,
-and tax reform laws like TRAIN, CREATE, and Ease of Paying Taxes Act. Do not offer legal advice.
-"""
+# ========== OPENAI LOGIC ==========
+SYSTEM_PROMPT = (
+    "You are TINA, the Tax Information Navigation Assistant. "
+    "You are helpful, polite, and specialize in answering questions about Philippine taxation. "
+    "Base your responses on publicly available tax laws such as the NIRC, BIR Revenue Regulations, RMCs, "
+    "and tax reform laws like TRAIN, CREATE, and Ease of Paying Taxes Act. Do not offer legal advice."
+)
 
-def query_openai(message):
+def ask_tina(question, username="User"):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": message}
+                {"role": "user", "content": question}
             ]
         )
-        reply = response.choices[0].message["content"].strip()
-        save_qna(message, reply)
-        return reply
+        answer = response.choices[0].message["content"]
+        save_qna(question, answer)
+        return answer.strip()
     except Exception as e:
-        logging.error(f"OpenAI Error: {e}")
-        return "Sorry, I encountered an error while processing your request."
+        return f"Sorry, something went wrong: {e}"
 
-# === GRADIO UI ===
-def chat_interface(message):
-    return query_openai(message)
+# ========== GRADIO UI ==========
+def greet(name):
+    return f"Hello, {name}! Welcome to TINA.", gr.update(visible=True), gr.update(visible=True)
 
+def proceed_to_tina(name):
+    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), gr.State(name)
+
+def tina_chat(question, state_name, history):
+    username = state_name or "User"
+    answer = ask_tina(question, username)
+    history = history or []
+    history.append((question, answer))
+    return "", history
+
+with gr.Blocks() as demo:
+    gr.Markdown("# TINA: Tax Information Navigation Assistance")
+
+    with gr.Column(visible=True) as greet_section:
+        name = gr.Textbox(label="Enter your name", interactive=True)
+        greet_btn = gr.Button("Greet Me")
+        greeting = gr.Textbox(label="Greeting", interactive=False)
+        proceed_btn = gr.Button("Proceed to TINA", visible=False)
+
+    with gr.Column(visible=False) as chat_section:
+        gr.Markdown("### Ask TINA your tax-related questions!")
+        chatbot = gr.Chatbot(label="TINA Chat", height=350)
+        question = gr.Textbox(label="Your Question", placeholder="Type your tax question here and press Enter")
+        submit_btn = gr.Button("Ask TINA")
+
+    state_name = gr.State()
+    state_history = gr.State([])
+
+    greet_btn.click(fn=greet, inputs=name, outputs=[greeting, proceed_btn, greeting])
+    proceed_btn.click(fn=proceed_to_tina, inputs=name, outputs=[greet_section, proceed_btn, chat_section, state_name])
+    submit_btn.click(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
+    question.submit(fn=tina_chat, inputs=[question, state_name, chatbot], outputs=[question, chatbot])
+
+# Initialize DB only once when app starts
 init_db()
-ui = gr.Interface(fn=chat_interface, inputs="text", outputs="text", title="TINA - PH Tax Chatbot")
-ui.launch()
+
+demo.launch()
