@@ -182,5 +182,5 @@ def renew_subscription(user, plan):
     conn.close()
     return f"Subscription for {user} renewed to {plan} until {new_expiry}."
 
-# UI Block (add login logic)
-# login_btn.click(fn=login_user, inputs=[username, password], outputs=[plan_display, output])
+# Use correct import for chat model
+from openai import ChatCompletion
