@@ -1,52 +1,37 @@
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import ssl
+from email.message import EmailMessage
 import os
 
-# 🔐 SMTP configuration - Set these in your environment for security
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "your_email@gmail.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "your_email_password")
-
-# 🌐 Email sender details
-FROM_NAME = "TINA AI Support"
-FROM_EMAIL = SMTP_USERNAME
+# Environment variables (set these in your Hugging Face or local environment)
+GMAIL_SENDER = os.getenv("GMAIL_SENDER")      # Your Gmail address
+GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")  # Your Gmail App Password
 
 def send_confirmation_email(to_email):
-    subject = "Confirm your TINA Premium Subscription"
-    confirmation_link = f"https://your-domain.com/confirm?email={to_email}"
-    body = f"""
-    Hello,
-
-    Thank you for registering for premium access to TINA – Tax Information Navigation Assistant.
-
-    Please confirm your email address by clicking the link below:
-
-    👉 {confirmation_link}
-
-    If you did not request this, kindly ignore this email.
-
-    Regards,  
-    TINA AI Support Team
-    """
-
     try:
-        msg = MIMEMultipart()
-        msg["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
+        if not GMAIL_SENDER or not GMAIL_PASSWORD:
+            return "❌ Email sender not configured."
 
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
-        server.send_message(msg)
-        server.quit()
+        msg = EmailMessage()
+        msg['Subject'] = 'TINA Email Confirmation'
+        msg['From'] = GMAIL_SENDER
+        msg['To'] = to_email
+        msg.set_content(f"""
+Hello,
 
-        print(f"✅ Confirmation email sent to {to_email}")
-        return True
+This is a confirmation email for your access to TINA – Tax Information Navigation Assistant.
 
+Your account is now eligible for activation by admin. Kindly wait for confirmation.
+
+Thank you,
+TINA Support Team
+        """.strip())
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(GMAIL_SENDER, GMAIL_PASSWORD)
+            server.send_message(msg)
+
+        return f"✅ Confirmation email sent to {to_email}"
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        return False
+        return f"❌ Failed to send email: {str(e)}"
