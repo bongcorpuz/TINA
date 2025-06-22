@@ -53,11 +53,14 @@ def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def is_valid_tax_question(text):
-    keywords = os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
-    return any(k.lower() in text.lower() for k in keywords)
+    keywords = [
+        k.strip().lower() for k in os.getenv("TAX_KEYWORDS", "tax,vat,bir,rdo,tin,withholding,income tax,1701,1702,2550,0605,0619,form,return,compliance,Philippine taxation,CREATE law,TRAIN law,ease of paying taxes").split(",")
+    ]
+    return any(k in text.lower() for k in keywords)
 
 def save_qna(question, answer, source="chatGPT"):
-    if not is_valid_tax_question(question): return
+    if not is_valid_tax_question(question):
+        return
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("INSERT INTO qna_log (question, answer, source) VALUES (?, ?, ?)", (question, answer, source))
@@ -125,7 +128,9 @@ def proceed_to_tina(name):
 def tina_chat(question, username, history):
     answer = ask_tina(question, username)
     history = history or []
-    history.append((question, answer))
+    # Use Gradio's new 'messages' format: list of dicts with 'role' and 'content'
+    history.append({"role": "user", "content": question})
+    history.append({"role": "assistant", "content": answer})
     return "", history
 
 def handle_upload(files):
@@ -145,7 +150,7 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=False) as chat_section:
         gr.Markdown("### Ask TINA your tax-related questions!")
-        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="tuples")
+        chatbot = gr.Chatbot(label="TINA Chat", value=[], type="messages")
         question = gr.Textbox(label="Your Question", placeholder="Type your tax question and press Enter")
         submit_btn = gr.Button("Ask TINA")
         upload = gr.File(label="Upload Reference Files (.txt, .md, .pdf, .jpg, .jpeg, .png)", file_types=[".txt", ".md", ".pdf", ".jpg", ".jpeg", ".png"], file_count="multiple")
