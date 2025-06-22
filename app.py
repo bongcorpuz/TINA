@@ -1,4 +1,4 @@
-from openai import OpenAI
+import openai
 import os
 import gradio as gr
 import sqlite3
@@ -18,7 +18,6 @@ import json
 load_dotenv()
 
 ADMIN_PASS = os.getenv("TINA_ADMIN_PASS", "admin")
-import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 conn = sqlite3.connect("query_log.db")
@@ -184,4 +183,4 @@ def renew_subscription(user, plan):
     return f"Subscription for {user} renewed to {plan} until {new_expiry}."
 
 # UI Block (add login logic)
-    login_btn.click(fn=login_user, inputs=[username, password], outputs=[plan_display, output])
+# login_btn.click(fn=login_user, inputs=[username, password], outputs=[plan_display, output])
