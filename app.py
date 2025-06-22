@@ -1,3 +1,5 @@
+# file: tina_app.py
+
 import os
 import sqlite3
 from datetime import datetime
@@ -55,7 +57,8 @@ def is_valid_tax_question(text):
     return any(k.lower() in text.lower() for k in keywords)
 
 def save_qna(question, answer, source="chatGPT"):
-    if not is_valid_tax_question(question): return
+    if not is_valid_tax_question(question):
+        return
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("INSERT INTO qna_log (question, answer, source) VALUES (?, ?, ?)", (question, answer, source))
@@ -63,23 +66,27 @@ def save_qna(question, answer, source="chatGPT"):
     conn.close()
 
 def extract_text_from_file(file):
-    ext = os.path.splitext(file.name)[1].lower()
-    content = ""
+    try:
+        ext = os.path.splitext(file.name)[1].lower()
+        content = ""
 
-    if ext in [".txt", ".md"]:
-        content = file.read().decode("utf-8")
-    elif ext == ".pdf":
-        pdf = fitz.open(stream=file.read(), filetype="pdf")
-        content = "\n".join([page.get_text() for page in pdf])
-    elif ext in [".jpg", ".jpeg", ".png"]:
-        img = Image.open(file)
-        content = pytesseract.image_to_string(img)
+        if ext in [".txt", ".md"]:
+            content = file.read().decode("utf-8")
+        elif ext == ".pdf":
+            pdf = fitz.open(stream=file.read(), filetype="pdf")
+            content = "\n".join([page.get_text() for page in pdf])
+        elif ext in [".jpg", ".jpeg", ".png"]:
+            img = Image.open(file)
+            content = pytesseract.image_to_string(img)
 
-    if content.strip():
-        with open(REFERENCE_FILE, "a", encoding="utf-8") as f:
-            f.write(f"\n--- Uploaded {datetime.now()} ---\n{content}\n")
-        return "File content processed and saved."
-    return "No readable content found in uploaded file."
+        if content.strip():
+            with open(REFERENCE_FILE, "a", encoding="utf-8") as f:
+                f.write(f"\n--- Uploaded {datetime.now()} ---\n{content}\n")
+            return "File content processed and saved."
+        return "No readable content found in uploaded file."
+    except Exception as e:
+        logging.exception("File extraction failed: %s", e)
+        return f"Error processing file: {e}"
 
 def load_reference_text():
     if os.path.exists(REFERENCE_FILE):
@@ -97,6 +104,9 @@ SYSTEM_PROMPT = (
 
 def ask_tina(question, username="User"):
     try:
+        if not openai.api_key:
+            return "API key missing. Please check your environment setup."
+
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         ref = load_reference_text()
         if ref:
@@ -111,6 +121,7 @@ def ask_tina(question, username="User"):
         save_qna(question, answer, source="chatGPT+ref" if ref else "chatGPT")
         return answer.strip()
     except Exception as e:
+        logging.exception("Error in ask_tina: %s", e)
         return f"Sorry, something went wrong: {e}"
 
 # ========== UI LOGIC ==========
@@ -163,4 +174,8 @@ with gr.Blocks() as demo:
     upload.change(fn=handle_upload, inputs=upload, outputs=upload_status)
 
 # ========== LAUNCH ==========
-demo.queue().launch()
+if __name__ == "__main__":
+    try:
+        demo.queue().launch(server_name="0.0.0.0", share=True)
+    except Exception as e:
+        logging.exception("Launch failed: %s", e)
