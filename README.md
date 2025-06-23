@@ -13,27 +13,30 @@ short_description: Tax Information Navigation Assistant
 
 ![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
 
-# TINA: Tax Information Navigation Assistant
+# 🇵🇭 TINA: Tax Information and Navigation Assistant
 
-TINA is your helpful assistant for Philippine tax compliance and law guidance.
+TINA is your expert chatbot assistant for Philippine tax compliance, BIR regulations, and revenue rulings—powered by OpenAI and built by Bong Corpuz & Co. CPAs.
+
+---
 
 ## 🚀 Features
-- Chatbot powered by OpenAI
-- Upload and extract .txt/.pdf/.jpg for tax content
-- Logs Q&A to SQLite
-- Hugging Face CI/CD integration
+
+- 🤖 Smart GPT Chat tuned to Philippine taxation only
+- 📂 Admin-only document upload (`.pdf`, `.txt`, `.jpg`, etc.)
+- 🔍 OCR + Embeddings + Semantic search for contextual answers
+- 🧠 Knowledge base from `knowledge_files/`
+- 📜 Built-in PH tax keyword filtering
+- 📊 Admin Q&A log viewer + CSV export
+
+---
 
 ## 🧪 Run Locally
+
 ```bash
+git clone https://huggingface.co/spaces/bongcorpuz/TINA
+cd TINA
+
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 python app.py
-```
-
-## 🔐 Setup
-Save your API key to `.env`:
-```
-OPENAI_API_KEY=your-openai-key
-```
-
-## ✅ Automated CI on Hugging Face
-This app runs tests on each push via `.huggingface/huggingface.yml`
