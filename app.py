@@ -28,8 +28,8 @@ SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
 
 try:
-    import openai
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 except ImportError:
     client = None
 
@@ -101,11 +101,11 @@ def count_guest_queries():
 
 def handle_ask(question):
     if not is_tax_related(question):
-        return "❌ This assistant only answers questions related to Philippine taxation. Please ask a tax-related question."
+        return gr.update(value="❌ This assistant only answers questions related to Philippine taxation."), gr.update(visible=False)
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return "❌ Guest users can only ask up to 5 questions. Please sign up to continue."
+        return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True)
 
     try:
         results = semantic_search(question)
@@ -118,19 +118,52 @@ def handle_ask(question):
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
-    return f"{answer}\n\n📌 You have {remaining}/5 questions remaining as a guest."
+    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False)
+
+def handle_login(username, password):
+    role = authenticate_user(username, password)
+    if role:
+        return gr.update(visible=True), gr.update(visible=False), f"👋 Welcome {username}!"
+    return gr.update(), gr.update(), "❌ Login failed."
+
+def handle_signup(username, password):
+    success = register_user(username, password)
+    return "Signup successful." if success else "Username already exists."
 
 with gr.Blocks() as demo:
     gr.Markdown("## TINA: Philippine Tax Assistant\nUpload tax-related files or ask a question below.")
-    with gr.Tab("Ask"):
-        question = gr.Textbox(label="Ask about Philippine taxation")
-        ask_button = gr.Button("Ask")
-        answer = gr.Textbox(label="Answer")
-        ask_button.click(fn=handle_ask, inputs=question, outputs=answer)
-    with gr.Tab("Upload"):
-        upload = gr.File(label="Upload tax documents (.pdf, .docx, .png, etc.)")
-        upload_output = gr.Textbox(label="Upload status")
-        upload.change(fn=handle_upload, inputs=upload, outputs=upload_output)
+
+    with gr.Tabs():
+        with gr.Tab("Ask"):
+            question = gr.Textbox(label="Ask about Philippine taxation")
+            ask_button = gr.Button("Ask")
+            answer = gr.Textbox(label="Answer")
+            signup_notice = gr.Textbox(visible=False, interactive=False, label="Notice")
+            ask_button.click(fn=handle_ask, inputs=question, outputs=[answer, signup_notice])
+
+        with gr.Tab("Signup"):
+            signup_user = gr.Textbox(label="Username")
+            signup_pass = gr.Textbox(label="Password", type="password")
+            signup_btn = gr.Button("Signup")
+            signup_msg = gr.Textbox(label="Status")
+            signup_btn.click(fn=handle_signup, inputs=[signup_user, signup_pass], outputs=signup_msg)
+
+        with gr.Tab("Login"):
+            login_user = gr.Textbox(label="Username")
+            login_pass = gr.Textbox(label="Password", type="password")
+            login_btn = gr.Button("Login")
+            login_msg = gr.Textbox(label="Status")
+            login_role = gr.Textbox(visible=False)
+            login_alert = gr.Textbox(visible=False)
+            login_btn.click(fn=handle_login, inputs=[login_user, login_pass], outputs=[login_msg, login_alert, login_role])
+
+        with gr.Tab("Upload"):
+            upload = gr.File(label="Upload tax documents (.pdf, .docx, .doc, .png, etc.)")
+            upload_output = gr.Textbox(label="Upload status")
+            upload.change(fn=handle_upload, inputs=upload, outputs=upload_output)
+
+    gr.Markdown("---")
+    gr.Markdown("<center><small>Powered by: <a href='https://www.bongcorpuz.con' target='_blank'>Bong Corpuz & Co. CPAs</a></small></center>")
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
