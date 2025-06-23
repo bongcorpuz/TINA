@@ -29,7 +29,7 @@ MAX_GUEST_QUESTIONS = 5
 
 try:
     import openai
-    client = openai.OpenAI()
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 except ImportError:
     client = None
 
