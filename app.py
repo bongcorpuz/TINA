@@ -14,12 +14,13 @@ from database import (
     has_uploaded_knowledge
 )
 from auth import login_user, signup_user, renew_subscription
-from file_utils import save_file, is_valid_file, semantic_search, extract_text_from_pdf_or_image
+from file_utils import save_file, is_valid_file, extract_text_from_file, semantic_search, index_document, load_or_create_faiss_index
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 init_db()
+load_or_create_faiss_index()
 
 PH_TAX_KEYWORDS = [
     "tax", "taxes", "taxation", "philippine tax", "philippine taxation", "taxpayer", "tax return",
@@ -58,8 +59,9 @@ def gr_upload(file, session_state):
     if not path:
         return err
     try:
-        extracted_text = extract_text_from_pdf_or_image(path)
+        extracted_text = extract_text_from_file(path)
         store_file_text(path, extracted_text)
+        index_document(extracted_text)
         return f"Uploaded and indexed: {os.path.basename(path)}"
     except Exception as e:
         return f"Failed to process file: {str(e)}"
@@ -71,17 +73,13 @@ def gr_query(input_text, session_state):
         return "TINA only answers questions related to Philippine taxation and BIR regulations."
 
     try:
-        if not has_uploaded_knowledge():
-            context = "No uploaded knowledge files available."
-            fallback_note = "⚠️ Note: Using general GPT knowledge due to missing internal documents."
+        docs = semantic_search(input_text)
+        if not docs:
+            context = "No relevant documents found."
+            fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
         else:
-            docs = semantic_search(input_text)
-            if not docs:
-                context = "No relevant documents found."
-                fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
-            else:
-                context = "\n---\n".join(docs)
-                fallback_note = ""
+            context = "\n---\n".join(docs)
+            fallback_note = ""
 
         system_prompt = "You are a helpful assistant expert in Philippine taxation. Use the following documents as reference if needed."
 
@@ -168,4 +166,3 @@ with gr.Blocks(title="TINA - Tax Information and Navigation Assistant (Powered b
     demo.load(lambda: {}, outputs=[session_state])
 
 demo.launch()
-
