@@ -1,21 +1,30 @@
 # Core dependencies
 openai==1.0.0
-gradio>=5.34.2
-python-dotenv
-bcrypt
-pytesseract
-pillow
+gradio==5.34.2
+python-dotenv==1.0.1
+bcrypt==4.1.3
+pytesseract==0.3.10
+pillow==10.3.0
 PyMuPDF==1.23.20
-pdfplumber
-sqlite-utils
+pdfplumber==0.10.3
+sqlite-utils==3.36
 
-# NLP + Search
-sentence-transformers
-faiss-cpu
-python-docx
+# Semantic search
+faiss-cpu==1.7.4
+sentence-transformers==2.6.1
+torch==2.2.2
+transformers==4.40.1
+
+# Office and file type handling
+python-docx==1.1.0
+python-pptx==0.6.23
+xlrd==2.0.1
+docx2txt==0.8
 
 # Testing & deployment
-pytest
-huggingface_hub>=0.28.1
-uvicorn==0.29.0  # Only needed if deploying via FastAPI, not required for Gradio
+pytest==8.2.2
+huggingface_hub==0.28.1
+uvicorn==0.29.0  # Optional: Only for FastAPI deployment
 
+# Utility
+tqdm==4.66.4
