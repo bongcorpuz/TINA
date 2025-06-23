@@ -27,17 +27,18 @@ SESSION_TIMEOUT = 1800
 try:
     import openai
     openai.api_key = os.getenv("OPENAI_API_KEY")
+    client = openai.OpenAI()
 except ImportError:
-    openai = None
+    client = None
 
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not openai:
+    if not client:
         return "[OpenAI is not available]"
     for attempt in range(3):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
