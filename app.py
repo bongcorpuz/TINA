@@ -17,13 +17,13 @@ from file_utils import (
 )
 from auth import authenticate_user, register_user, is_admin
 
+import os, logging, hashlib
+from functools import lru_cache
+
 load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
 
-# Fallback inline compatible with openai==1.0.0
-import os, logging
-from functools import lru_cache
 try:
     import openai
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -49,13 +49,22 @@ def fallback_to_chatgpt(prompt: str) -> str:
 
 def handle_upload(file):
     if not file or not is_valid_file(file.name):
-        return "Unsupported or missing file."
-    path, error = save_file(file)
-    if error:
-        return error
-    text = extract_text_from_file(path)
+        return "❌ Unsupported or missing file."
+
+    contents = file.read()
+    digest = hashlib.sha256(contents).hexdigest()
+    file_hash_path = os.path.join("knowledge_files", f"{digest}.txt")
+
+    if os.path.exists(file_hash_path):
+        return f"⚠ File already uploaded previously. Skipping duplicate."
+
+    with open(file_hash_path, "wb") as f:
+        f.write(contents)
+
+    text = extract_text_from_file(file_hash_path)
     index_document(text)
-    return "File uploaded and indexed."
+    snippet = text[:300].strip().replace("\n", " ") + ("..." if len(text) > 300 else "")
+    return f"✅ File '{file.name}' uploaded and indexed.\n\n📄 Extract Preview:\n{snippet}"
 
 def handle_ask(question):
     try:
@@ -88,9 +97,8 @@ def session_expired(last_time_str):
         return True
 
 with gr.Blocks(title="TINA: Tax Information Navigation Assistant") as demo:
-    gr.Markdown("# 📄 TINA: Tax Inquiry & Navigator Assistant")
+    gr.Markdown("# 📄 TINA: Tax Information Navigation Assistant")
 
-    # Hidden states as textboxes
     hidden_user_role = gr.Textbox(value="guest", visible=False)
     hidden_last_login = gr.Textbox(value="0", visible=False)
 
@@ -111,7 +119,7 @@ with gr.Blocks(title="TINA: Tax Information Navigation Assistant") as demo:
     with gr.Tab("Upload"):
         file_input = gr.File()
         upload_btn = gr.Button("Upload")
-        upload_output = gr.Textbox()
+        upload_output = gr.Textbox(label="Result Summary")
         upload_btn.click(handle_upload, inputs=file_input, outputs=upload_output)
 
     with gr.Tab("Ask"):
