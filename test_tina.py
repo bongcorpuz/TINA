@@ -29,3 +29,11 @@ def test_import_store_file_text():
         assert callable(store_file_text)
     except ImportError:
         pytest.fail("store_file_text is missing in database.py")
+
+# Implemented function reference for semantic ingestion
+def test_store_file_text_exec():
+    try:
+        from database import store_file_text
+        store_file_text("example.txt", "Example text from document.")
+    except Exception as e:
+        pytest.fail(f"store_file_text raised an exception: {e}")
