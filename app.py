@@ -29,20 +29,20 @@ MAX_GUEST_QUESTIONS = 5
 
 try:
     import openai
-    openai.api_key = os.getenv("OPENAI_API_KEY")
 except ImportError:
     openai = None
 
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not openai or not openai.api_key:
+    if not openai or not os.getenv("OPENAI_API_KEY"):
         return "[OpenAI API not configured]"
     for attempt in range(3):
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                api_key=os.getenv("OPENAI_API_KEY")
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -116,7 +116,6 @@ def handle_ask(question):
         source = "chatgpt"
         results = [fallback_answer]
 
-        # Patch: Store fallback answer for continuous learning
         content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
         filename = f"chatgpt_{content_hash}.txt"
         path = os.path.join("knowledge_files", filename)
