@@ -21,3 +21,11 @@ def test_signup():
 def test_login():
     session_state, msg = gr_login("admin", "admin@1971", session)
     assert "username" in session_state or "Invalid credentials" in msg
+
+# Test placeholder for store_file_text function integration
+def test_import_store_file_text():
+    try:
+        from database import store_file_text
+        assert callable(store_file_text)
+    except ImportError:
+        pytest.fail("store_file_text is missing in database.py")
