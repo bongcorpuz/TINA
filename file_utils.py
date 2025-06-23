@@ -11,10 +11,10 @@ import logging
 from docx import Document
 
 try:
-    import openai
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    from openai import OpenAI
+    client = OpenAI()
 except ImportError:
-    openai = None
+    client = None
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_FILE = "faiss_index.idx"
@@ -109,10 +109,10 @@ def rebuild_index():
 
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not openai:
+    if not client:
         return "[OpenAI is not available]"
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}]
         )
