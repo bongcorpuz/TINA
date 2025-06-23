@@ -12,6 +12,7 @@ short_description: Tax Information Navigation Assistant
 ---
 
 ![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
+![Test](https://github.com/your-user/tina/actions/workflows/python-app.yml/badge.svg)
 
 # 🇵🇭 TINA: Tax Information and Navigation Assistant
 
@@ -27,6 +28,7 @@ TINA is your expert chatbot assistant for Philippine tax compliance, BIR regulat
 - 🧠 Knowledge base from `knowledge_files/`
 - 📜 Built-in PH tax keyword filtering
 - 📊 Admin Q&A log viewer + CSV export
+- ✅ CI + Unit test coverage with `pytest`
 
 ---
 
@@ -71,10 +73,11 @@ EMAIL_PASS=your-app-password
 🔺 knowledge_files/     # All indexed documents
 🔺 query_log.db         # SQLite DB
 🔺 .env                 # API keys
+🔺 test_file_utils.py   # File handling test cases
 ```
 
 ---
 
 ## ✅ CI/CD on Hugging Face
 
-TINA supports automatic deployment via Hugging Face Spaces and `.huggingface/huggingface.yml`.
+TINA supports automatic deployment via Hugging Face Spaces and `.huggingface/huggingface.yml`. All pushes are tested using `pytest` to ensure file extraction and logic integrity.
