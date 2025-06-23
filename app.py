@@ -28,8 +28,8 @@ SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
 
 try:
-    from openai import OpenAI
-    client = OpenAI()
+    import openai
+    client = openai.OpenAI()
 except ImportError:
     client = None
 
@@ -132,4 +132,5 @@ with gr.Blocks() as demo:
         upload_output = gr.Textbox(label="Upload status")
         upload.change(fn=handle_upload, inputs=upload, outputs=upload_output)
 
-demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
