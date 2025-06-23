@@ -29,10 +29,11 @@ TINA is your expert chatbot assistant for Philippine tax compliance, BIR regulat
 - 📜 Built-in PH tax keyword filtering
 - 📊 Admin Q&A log viewer + CSV export
 - ✅ CI + Unit test coverage with `pytest`
+- 🔢 SHA256 duplicate file prevention
 
 ---
 
-## 🧪 Run Locally
+## 🤪 Run Locally
 
 ```bash
 git clone https://huggingface.co/spaces/bongcorpuz/TINA
