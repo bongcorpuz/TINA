@@ -1,10 +1,5 @@
-#!/usr/bin/env python3
-# Unified & Cleaned Core Modules for TINA
-
-# All previous content remains unchanged (auth, file_utils, database)
-# The following is added: Cleaned Gradio app integration
-
 # ------------------ app.py ------------------
+#!/usr/bin/env python3
 import gradio as gr
 import time
 from file_utils import (
@@ -33,19 +28,19 @@ SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
 
 try:
-    import openai
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    from openai import OpenAI
+    client = OpenAI()
 except ImportError:
-    openai = None
+    client = None
 
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not openai or not openai.api_key:
+    if not client:
         return "[OpenAI API not configured]"
     for attempt in range(3):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -125,5 +120,16 @@ def handle_ask(question):
     remaining = MAX_GUEST_QUESTIONS - used - 1
     return f"{answer}\n\n📌 You have {remaining}/5 questions remaining as a guest."
 
-# The rest of the app.py remains unchanged
-# ...
+with gr.Blocks() as demo:
+    gr.Markdown("## TINA: Philippine Tax Assistant\nUpload tax-related files or ask a question below.")
+    with gr.Tab("Ask"):
+        question = gr.Textbox(label="Ask about Philippine taxation")
+        ask_button = gr.Button("Ask")
+        answer = gr.Textbox(label="Answer")
+        ask_button.click(fn=handle_ask, inputs=question, outputs=answer)
+    with gr.Tab("Upload"):
+        upload = gr.File(label="Upload tax documents (.pdf, .docx, .png, etc.)")
+        upload_output = gr.Textbox(label="Upload status")
+        upload.change(fn=handle_upload, inputs=upload, outputs=upload_output)
+
+demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
