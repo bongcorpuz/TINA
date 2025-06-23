@@ -71,13 +71,17 @@ def gr_query(input_text, session_state):
         return "TINA only answers questions related to Philippine taxation and BIR regulations."
 
     try:
-        docs = semantic_search(input_text)
-        if not docs:
-            context = "No relevant documents found."
-            fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
+        if not has_uploaded_knowledge():
+            context = "No uploaded knowledge files available."
+            fallback_note = "⚠️ Note: Using general GPT knowledge due to missing internal documents."
         else:
-            context = "\n---\n".join(docs)
-            fallback_note = ""
+            docs = semantic_search(input_text)
+            if not docs:
+                context = "No relevant documents found."
+                fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
+            else:
+                context = "\n---\n".join(docs)
+                fallback_note = ""
 
         system_prompt = "You are a helpful assistant expert in Philippine taxation. Use the following documents as reference if needed."
 
