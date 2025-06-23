@@ -28,8 +28,8 @@ SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
 
 try:
-    import openai
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 except ImportError:
     client = None
 
