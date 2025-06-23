@@ -13,21 +13,17 @@ def setup_database():
     with get_conn() as conn:
         conn.execute("DELETE FROM subscribers WHERE username=?", (USERNAME,))
 
-
 def test_register_user():
     assert register_user(USERNAME, PASSWORD) is True
     assert register_user(USERNAME, PASSWORD) is False  # duplicate
-
 
 def test_authenticate_user():
     assert authenticate_user(USERNAME, PASSWORD) == "user"
     assert authenticate_user(USERNAME, "wrong") is None
 
-
 def test_is_admin():
     assert is_admin("admin") is True
     assert is_admin("user") is False
-
 
 def test_renew_subscription():
     result = renew_subscription(USERNAME, "monthly")
