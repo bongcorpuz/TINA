@@ -2,40 +2,53 @@
 
 set -e
 
-# OS Check
-echo "🔍 Checking operating system..."
+echo "🔍 Detecting operating system..."
 if grep -qi debian /etc/os-release || grep -qi ubuntu /etc/os-release; then
-  echo "✅ Debian/Ubuntu system detected. Proceeding with installation."
-  echo "🔄 Running apt-get update..."
+  echo "✅ Debian/Ubuntu detected. Installing dependencies..."
   sudo apt-get update
-
-  echo "📦 Installing Tesseract OCR, Poppler, LibreOffice with version locking..."
   sudo apt-get install -y \
-    tesseract-ocr=4.1.1 \
+    tesseract-ocr \
     poppler-utils \
-    libreoffice
+    libreoffice \
+    python3 \
+    python3-pip \
+    build-essential \
+    libgl1
 
 elif grep -qi alpine /etc/os-release; then
-  echo "🔧 Alpine Linux detected. Installing dependencies..."
+  echo "✅ Alpine Linux detected. Installing dependencies..."
   sudo apk update
-  sudo apk add tesseract poppler libreoffice
+  sudo apk add \
+    tesseract \
+    poppler \
+    libreoffice \
+    python3 \
+    py3-pip \
+    build-base \
+    ttf-freefont
 
 elif grep -qi redhat /etc/os-release || grep -qi centos /etc/os-release || grep -qi fedora /etc/os-release; then
-  echo "🔧 RedHat-based system detected. Installing dependencies..."
+  echo "✅ RedHat-based system detected. Installing dependencies..."
   sudo yum install -y \
     tesseract \
     poppler-utils \
-    libreoffice
+    libreoffice \
+    python3 \
+    python3-pip \
+    gcc \
+    gcc-c++ \
+    make
 
 else
-  echo "❌ Unsupported OS. This script supports Debian, Ubuntu, Alpine, and RedHat-based systems."
+  echo "❌ Unsupported OS. Only Debian, Ubuntu, Alpine, and RedHat-based systems are supported."
   exit 1
 fi
 
-# Delete apt.txt if present (redundant)
-if [ -f "apt.txt" ]; then
-  echo "🧹 Removing redundant apt.txt..."
-  rm apt.txt
-fi
+echo "🐍 Installing Python dependencies..."
+pip3 install --upgrade pip
+pip3 install -r requirements.txt
 
-echo "✔ All system dependencies installed successfully!"
+echo "🧹 Cleaning up old apt.txt (if exists)..."
+[ -f "apt.txt" ] && rm apt.txt
+
+echo "✅ Setup complete. Environment is ready!"
