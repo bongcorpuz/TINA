@@ -40,3 +40,41 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python app.py
+```
+
+---
+
+## 🔐 .env Setup
+
+Save this in your `.env` file:
+
+```env
+OPENAI_API_KEY=your-openai-api-key
+TINA_ADMIN_PASS=admin@1971
+
+# Optional (for future features)
+MAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=info@bongcorpuz.com
+EMAIL_PASS=your-app-password
+```
+
+---
+
+## 📁 File Structure
+
+```bash
+🔺 app.py               # Main app UI + logic
+🔺 auth.py              # Login/signup logic
+🔺 database.py          # DB operations
+🔺 file_utils.py        # Uploads, OCR, embeddings
+🔺 knowledge_files/     # All indexed documents
+🔺 query_log.db         # SQLite DB
+🔺 .env                 # API keys
+```
+
+---
+
+## ✅ CI/CD on Hugging Face
+
+TINA supports automatic deployment via Hugging Face Spaces and `.huggingface/huggingface.yml`.
