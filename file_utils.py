@@ -10,11 +10,9 @@ import numpy as np
 import logging
 from docx import Document
 
-try:
-    from openai import OpenAI
-    client = OpenAI()
-except ImportError:
-    client = None
+import openai
+openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_FILE = "faiss_index.idx"
@@ -112,10 +110,10 @@ def fallback_to_chatgpt(prompt: str) -> str:
     if not client:
         return "[OpenAI is not available]"
     try:
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message.content.strip()
+        return response.choices[0].message["content"].strip()
     except Exception as e:
         return f"[ChatGPT Error] {e}"
