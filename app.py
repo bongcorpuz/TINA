@@ -129,3 +129,11 @@ def handle_ask(question):
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
     return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.Tabs.update(selected=0)
+
+# ✅ Ensure app launches in Spaces
+with gr.Blocks() as demo:
+    gr.Markdown("## TINA: Philippine Tax Assistant\nUpload tax-related files or ask a question below.")
+    # (tabs and UI layout follow here...)
+
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
