@@ -2,6 +2,7 @@
 import sqlite3
 import os
 import hashlib
+import csv
 from datetime import datetime
 
 DB_PATH = os.getenv("DATABASE_PATH", "query_log.db")
@@ -45,12 +46,11 @@ def store_file_text(filename: str, content: str):
     hash_digest = hashlib.sha256(content.strip().encode("utf-8")).hexdigest()
     path = os.path.join(KNOWLEDGE_DIR, filename)
 
-    # Check if file with same hash already exists
     with get_conn() as conn:
         c = conn.cursor()
         c.execute("SELECT 1 FROM summaries WHERE hash = ?", (hash_digest,))
         if c.fetchone():
-            return path  # Skip storing duplicate
+            return path
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -59,3 +59,16 @@ def store_file_text(filename: str, content: str):
         conn.commit()
 
     return path
+
+def export_logs_csv(file_path="logs_export.csv"):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT username, query, context, response, timestamp FROM logs")
+        rows = c.fetchall()
+
+    with open(file_path, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Username", "Query", "Context", "Response", "Timestamp"])
+        writer.writerows(rows)
+
+    return os.path.abspath(file_path)
