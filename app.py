@@ -13,14 +13,34 @@ from file_utils import (
     extract_text_from_file,
     semantic_search,
     index_document,
-    load_or_create_faiss_index,
-    fallback_to_chatgpt
+    load_or_create_faiss_index
 )
 from auth import authenticate_user, register_user, is_admin
 
 load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
+
+# Fallback inline to avoid OpenAI client error due to proxies argument
+import os, logging
+try:
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+except ImportError:
+    openai = None
+
+def fallback_to_chatgpt(prompt: str) -> str:
+    logging.warning("Fallback to ChatGPT activated.")
+    if not openai:
+        return "[OpenAI is not available]"
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"[ChatGPT Error] {e}"
 
 def handle_upload(file):
     if not file or not is_valid_file(file.name):
