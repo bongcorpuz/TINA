@@ -1,24 +1,28 @@
-# ------------------ file_utils.py ------------------
+# file_utils.py (patched to support separate fine-tuned embedding model for semantic search)
+
 import os
 import fitz
 import pdfplumber
 import pytesseract
 from PIL import Image
-from sentence_transformers import SentenceTransformer
-import faiss
-import numpy as np
-import logging
 from docx import Document
+import numpy as np
+import faiss
+import logging
 
-import openai
-openai.api_key = os.getenv("OPENAI_API_KEY")
-client = openai
+from sentence_transformers import SentenceTransformer  # use dedicated model for embeddings
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+# Optional: use LoRA + HuggingFace transformers if needed for embedding
+# from transformers import AutoTokenizer, AutoModel
+# from peft import PeftModel
+
+# Embedding model path (can be your LoRA fine-tuned encoder if desired)
+EMBED_MODEL_PATH = os.getenv("EMBED_MODEL_PATH", "sentence-transformers/all-MiniLM-L6-v2")
+model = SentenceTransformer(EMBED_MODEL_PATH)
+
 INDEX_FILE = "faiss_index.idx"
 VERSION_FILE = "index_version.txt"
 CURRENT_VERSION = "v1.0.0"
-model = SentenceTransformer(MODEL_NAME)
 
 index = None
 knowledge_texts = []
@@ -104,16 +108,3 @@ def rebuild_index():
         if is_valid_file(path):
             text = extract_text_from_file(path)
             index_document(text)
-
-def fallback_to_chatgpt(prompt: str) -> str:
-    logging.warning("Fallback to ChatGPT activated.")
-    if not client:
-        return "[OpenAI is not available]"
-    try:
-        response = client.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message["content"].strip()
-    except Exception as e:
-        return f"[ChatGPT Error] {e}"
