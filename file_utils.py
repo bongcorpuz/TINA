@@ -23,7 +23,6 @@ CURRENT_VERSION = "v1.0.0"
 model = SentenceTransformer(MODEL_NAME)
 
 index = None
-
 knowledge_texts = []
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".jpg", ".jpeg", ".png", ".docx", ".odt", ".rtf"}
@@ -119,7 +118,7 @@ def fallback_to_chatgpt(prompt):
     if not openai:
         return "[OpenAI is not available]"
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}]
         )
