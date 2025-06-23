@@ -22,7 +22,7 @@ numpy==1.26.4  # compatible with faiss 1.7.4
 # Office file support
 python-docx==1.1.0
 docx2txt==0.8
-textract==1.6.5
+textract==1.6.3  # compatible with Python 3.10
 
 # Testing & deployment
 pytest==8.2.0
