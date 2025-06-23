@@ -16,7 +16,7 @@ from file_utils import (
     load_or_create_faiss_index
 )
 from auth import authenticate_user, register_user, is_admin
-from database import log_query
+from database import log_query, get_conn
 
 import os, logging, hashlib
 from functools import lru_cache
@@ -24,6 +24,7 @@ from functools import lru_cache
 load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
+MAX_GUEST_QUESTIONS = 5
 
 try:
     import openai
@@ -89,9 +90,20 @@ def handle_upload(file):
     snippet = text[:300].strip().replace("\n", " ") + ("..." if len(text) > 300 else "")
     return f"✅ File '{file.name}' uploaded and indexed.\n\n📄 Extract Preview:\n{snippet}"
 
+def count_guest_queries():
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest'")
+        return c.fetchone()[0]
+
 def handle_ask(question):
     if not is_tax_related(question):
         return "❌ This assistant only answers questions related to Philippine taxation. Please ask a tax-related question."
+
+    used = count_guest_queries()
+    if used >= MAX_GUEST_QUESTIONS:
+        return "❌ Guest users can only ask up to 5 questions. Please sign up to continue."
+
     try:
         results = semantic_search(question)
         source = "semantic"
@@ -99,9 +111,11 @@ def handle_ask(question):
         print(f"[Fallback] Semantic search error: {e}")
         results = [fallback_to_chatgpt(question)]
         source = "chatgpt"
+
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
-    return answer
+    remaining = MAX_GUEST_QUESTIONS - used - 1
+    return f"{answer}\n\n📌 You have {remaining}/5 questions remaining as a guest."
 
 def handle_login(username, password):
     role = authenticate_user(username, password)
