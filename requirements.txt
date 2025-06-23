@@ -9,6 +9,7 @@ pytesseract==0.3.10
 Pillow==10.2.0
 PyMuPDF==1.23.20
 pdfplumber==0.7.6  # Downgraded for textract compatibility
+pdfminer.six==20181108  # Required for textract==1.6.3
 sqlite-utils==3.35
 
 # Semantic Search + FAISS + Embeddings
