@@ -8,6 +8,8 @@ from database import (
     init_db,
     log_query,
     export_logs_csv,
+    view_logs,
+    delete_log_by_id,
     view_summaries
 )
 from auth import login_user, signup_user, renew_subscription
@@ -51,10 +53,14 @@ def gr_query(input_text, session_state):
         return f"OpenAI Error: {str(e)}"
 
 def gr_view_logs(session_state):
-    return "view_logs function not available."
+    if session_state.get("username") != "admin":
+        return "Unauthorized."
+    return view_logs()
 
 def gr_delete_log(log_id, session_state):
-    return "delete_log_by_id function not available."
+    if session_state.get("username") != "admin":
+        return "Unauthorized."
+    return delete_log_by_id(log_id)
 
 def gr_export_csv(session_state):
     if session_state.get("username") != "admin":
@@ -115,5 +121,3 @@ with gr.Blocks() as demo:
     demo.load(lambda: {}, outputs=[session_state])
 
 demo.launch()
-
-
