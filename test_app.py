@@ -13,5 +13,14 @@ class TestHandleAsk(unittest.TestCase):
                 self.assertIn(fallback_response, result)
                 mock_fallback.assert_called_once_with(dummy_query)
 
+    def test_handle_ask_success(self):
+        dummy_query = "What is income tax?"
+        mock_result = ["Answer 1", "Answer 2"]
+
+        with patch("app.semantic_search", return_value=mock_result):
+            result = handle_ask(dummy_query)
+            expected = "\n\n---\n\n".join(mock_result)
+            self.assertEqual(result, expected)
+
 if __name__ == "__main__":
     unittest.main()
