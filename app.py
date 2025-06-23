@@ -28,19 +28,19 @@ SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
 
 try:
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
 except ImportError:
-    client = None
+    openai = None
 
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not client:
+    if not openai or not openai.api_key:
         return "[OpenAI API not configured]"
     for attempt in range(3):
         try:
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -105,20 +105,31 @@ def handle_ask(question):
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True)
+        return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
 
     try:
         results = semantic_search(question)
         source = "semantic"
     except Exception as e:
-        print(f"[Fallback] Semantic search error: {e}")
-        results = [fallback_to_chatgpt(question)]
+        logging.warning(f"[Fallback] Semantic search error: {e}")
+        fallback_answer = fallback_to_chatgpt(question)
         source = "chatgpt"
+        results = [fallback_answer]
+
+        # Patch: Store fallback answer for continuous learning
+        content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
+        filename = f"chatgpt_{content_hash}.txt"
+        path = os.path.join("knowledge_files", filename)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(fallback_answer)
+            index_document(fallback_answer)
+            store_file_text(filename, fallback_answer)
 
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
-    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False)
+    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.Tabs.update(selected=0)
 
 def handle_login(username, password):
     role = authenticate_user(username, password)
@@ -133,13 +144,13 @@ def handle_signup(username, password):
 with gr.Blocks() as demo:
     gr.Markdown("## TINA: Philippine Tax Assistant\nUpload tax-related files or ask a question below.")
 
-    with gr.Tabs():
+    with gr.Tabs() as tabs:
         with gr.Tab("Ask"):
             question = gr.Textbox(label="Ask about Philippine taxation")
             ask_button = gr.Button("Ask")
             answer = gr.Textbox(label="Answer")
             signup_notice = gr.Textbox(visible=False, interactive=False, label="Notice")
-            ask_button.click(fn=handle_ask, inputs=question, outputs=[answer, signup_notice])
+            ask_button.click(fn=handle_ask, inputs=question, outputs=[answer, signup_notice, tabs])
 
         with gr.Tab("Signup"):
             signup_user = gr.Textbox(label="Username")
