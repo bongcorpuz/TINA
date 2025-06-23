@@ -1,12 +1,15 @@
-huggingface_hub>=0.28.1
+# Core dependencies
+openai==1.0.0
+gradio>=5.34.2
+python-dotenv
+bcrypt
 pytesseract
 pillow
 PyMuPDF==1.23.20
 pdfplumber
-openai==1.0.0
-gradio>=5.34.2
-bcrypt
 sqlite-utils
-python-dotenv
-uvicorn==0.29.0
+
+# Testing & deployment
 pytest
+huggingface_hub>=0.28.1
+uvicorn==0.29.0  # Only needed if deploying via FastAPI, not required for Gradio
