@@ -20,7 +20,13 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 init_db()
-load_or_create_faiss_index()
+try:
+    load_or_create_faiss_index()
+except Exception as e:
+    print(f"FAISS index loading failed, fallback to GPT-only mode: {str(e)}")
+    FAISS_DISABLED = True
+else:
+    FAISS_DISABLED = False
 
 PH_TAX_KEYWORDS = [
     "tax", "taxes", "taxation", "philippine tax", "philippine taxation", "taxpayer", "tax return",
@@ -61,7 +67,8 @@ def gr_upload(file, session_state):
     try:
         extracted_text = extract_text_from_file(path)
         store_file_text(path, extracted_text)
-        index_document(extracted_text)
+        if not FAISS_DISABLED:
+            index_document(extracted_text)
         return f"Uploaded and indexed: {os.path.basename(path)}"
     except Exception as e:
         return f"Failed to process file: {str(e)}"
@@ -73,7 +80,11 @@ def gr_query(input_text, session_state):
         return "TINA only answers questions related to Philippine taxation and BIR regulations."
 
     try:
-        docs = semantic_search(input_text)
+        if FAISS_DISABLED:
+            docs = []
+        else:
+            docs = semantic_search(input_text)
+
         if not docs:
             context = "No relevant documents found."
             fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
