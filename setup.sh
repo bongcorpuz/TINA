@@ -32,4 +32,10 @@ else
   exit 1
 fi
 
+# Delete apt.txt if present (redundant)
+if [ -f "apt.txt" ]; then
+  echo "🧹 Removing redundant apt.txt..."
+  rm apt.txt
+fi
+
 echo "✔ All system dependencies installed successfully!"
