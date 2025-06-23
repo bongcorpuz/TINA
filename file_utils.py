@@ -24,7 +24,7 @@ model = SentenceTransformer(MODEL_NAME)
 
 index = None
 knowledge_texts = []
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".jpg", ".jpeg", ".png", ".docx", ".odt", ".rtf"}
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".odt", ".rtf"}
 
 def is_valid_file(filename: str) -> bool:
     return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
@@ -49,7 +49,7 @@ def extract_text_from_file(path: str) -> str:
         if ext == ".docx":
             doc = Document(path)
             return "\n".join([p.text for p in doc.paragraphs])
-        if ext in [".odt", ".rtf"]:
+        if ext in [".odt", ".rtf", ".doc"]:
             import textract
             return textract.process(path).decode("utf-8")
     except Exception as e:
@@ -112,7 +112,7 @@ def fallback_to_chatgpt(prompt: str) -> str:
     if not openai:
         return "[OpenAI is not available]"
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}]
         )
