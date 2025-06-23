@@ -1,7 +1,6 @@
 # test_database.py
 import os
 import pytest
-import tempfile
 from database import (
     init_db, get_conn, log_query, view_logs, view_summaries,
     store_file_text, export_logs_csv, delete_log_by_id
