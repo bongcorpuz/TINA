@@ -9,7 +9,13 @@ PyMuPDF==1.23.20
 pdfplumber
 sqlite-utils
 
+# NLP + Search
+sentence-transformers
+faiss-cpu
+python-docx
+
 # Testing & deployment
 pytest
 huggingface_hub>=0.28.1
 uvicorn==0.29.0  # Only needed if deploying via FastAPI, not required for Gradio
+
