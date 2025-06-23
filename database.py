@@ -60,6 +60,13 @@ def store_file_text(filename: str, content: str):
 
     return path
 
+def has_uploaded_knowledge():
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM summaries")
+        count = c.fetchone()[0]
+        return count > 0
+
 def export_logs_csv(file_path="logs_export.csv"):
     with get_conn() as conn:
         c = conn.cursor()
@@ -86,3 +93,8 @@ def delete_log_by_id(log_id: int):
         conn.commit()
         return f"Log ID {log_id} deleted."
 
+def view_summaries():
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT hash, summary FROM summaries ORDER BY rowid DESC")
+        return c.fetchall()
