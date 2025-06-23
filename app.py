@@ -14,7 +14,7 @@ from database import (
     has_uploaded_knowledge
 )
 from auth import login_user, signup_user, renew_subscription
-from file_utils import save_file, is_valid_file, extract_text_from_file, semantic_search
+from file_utils import save_file, is_valid_file, semantic_search, extract_text_from_pdf_or_image
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -58,7 +58,7 @@ def gr_upload(file, session_state):
     if not path:
         return err
     try:
-        extracted_text = extract_text_from_file(path)
+        extracted_text = extract_text_from_pdf_or_image(path)
         store_file_text(path, extracted_text)
         return f"Uploaded and indexed: {os.path.basename(path)}"
     except Exception as e:
@@ -168,3 +168,4 @@ with gr.Blocks(title="TINA - Tax Information and Navigation Assistant (Powered b
     demo.load(lambda: {}, outputs=[session_state])
 
 demo.launch()
+
