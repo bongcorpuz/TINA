@@ -35,18 +35,17 @@ MAX_GUEST_QUESTIONS = 5
 try:
     import openai
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    client = openai
 except ImportError:
-    client = None
+    openai = None
 
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not client:
-        return "[OpenAI is not available]"
+    if not openai or not openai.api_key:
+        return "[OpenAI API not configured]"
     for attempt in range(3):
         try:
-            response = client.ChatCompletion.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
