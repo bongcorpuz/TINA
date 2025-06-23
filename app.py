@@ -21,26 +21,31 @@ load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
 
-# Fallback inline to avoid OpenAI client error due to proxies argument
+# Fallback inline compatible with openai==1.0.0
 import os, logging
+from functools import lru_cache
 try:
     import openai
     openai.api_key = os.getenv("OPENAI_API_KEY")
 except ImportError:
     openai = None
 
+@lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
     if not openai:
         return "[OpenAI is not available]"
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"[ChatGPT Error] {e}"
+    for attempt in range(3):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logging.error(f"[ChatGPT Retry {attempt+1}] {e}")
+            time.sleep(1.5)
+    return f"[ChatGPT Error] All retries failed."
 
 def handle_upload(file):
     if not file or not is_valid_file(file.name):
