@@ -20,8 +20,6 @@ from auth import authenticate_user, register_user, is_admin
 
 load_or_create_faiss_index()
 
-user_role = gr.State("guest")
-last_login_time = gr.State(0)
 SESSION_TIMEOUT = 1800
 
 def handle_upload(file):
@@ -45,8 +43,8 @@ def handle_ask(question):
 def handle_login(username, password):
     role = authenticate_user(username, password)
     if role:
-        return f"Welcome {username}!", role, time.time()
-    return "Login failed.", "guest", 0
+        return f"Welcome {username}!", role, str(time.time())
+    return "Login failed.", "guest", "0"
 
 def handle_signup(username, password):
     success = register_user(username, password)
@@ -56,20 +54,27 @@ def update_admin_visibility(role):
     return gr.update(visible=(role == "admin"))
 
 def reset_user():
-    return "Logged out.", "guest", 0
+    return "Logged out.", "guest", "0"
 
-def session_expired(last_time):
-    return time.time() - last_time > SESSION_TIMEOUT
+def session_expired(last_time_str):
+    try:
+        return time.time() - float(last_time_str) > SESSION_TIMEOUT
+    except ValueError:
+        return True
 
 with gr.Blocks(title="TINA: Tax Information Navigation Assistant") as demo:
     gr.Markdown("# 📄 TINA: Tax Inquiry & Navigator Assistant")
+
+    # Hidden states as textboxes
+    hidden_user_role = gr.Textbox(value="guest", visible=False)
+    hidden_last_login = gr.Textbox(value="0", visible=False)
 
     with gr.Tab("Login"):
         login_user = gr.Textbox(label="Username")
         login_pass = gr.Textbox(label="Password", type="password")
         login_btn = gr.Button("Login")
         login_msg = gr.Textbox(label="Status")
-        login_btn.click(handle_login, inputs=[login_user, login_pass], outputs=[login_msg, user_role, last_login_time])
+        login_btn.click(handle_login, inputs=[login_user, login_pass], outputs=[login_msg, hidden_user_role, hidden_last_login])
 
     with gr.Tab("Signup"):
         signup_user = gr.Textbox(label="Username")
@@ -93,19 +98,19 @@ with gr.Blocks(title="TINA: Tax Information Navigation Assistant") as demo:
     with gr.Tab("Admin", visible=False) as admin_tab:
         admin_content = gr.Textbox(label="Admin commands here...")
 
-    user_role.change(update_admin_visibility, inputs=user_role, outputs=admin_tab)
+    hidden_user_role.change(update_admin_visibility, inputs=hidden_user_role, outputs=admin_tab)
 
     with gr.Row():
         logout_btn = gr.Button("Logout")
         logout_status = gr.Textbox(label="Status")
-        logout_btn.click(reset_user, outputs=[logout_status, user_role, last_login_time])
+        logout_btn.click(reset_user, outputs=[logout_status, hidden_user_role, hidden_last_login])
 
     def auto_logout(role, last_time):
         if role != "guest" and session_expired(last_time):
-            return "Session expired.", "guest", 0, gr.update(visible=False)
+            return "Session expired.", "guest", "0", gr.update(visible=False)
         return gr.update(), gr.update(), gr.update(), gr.update()
 
-    demo.load(fn=auto_logout, inputs=[user_role, last_login_time], outputs=[logout_status, user_role, last_login_time, admin_tab])
+    demo.load(fn=auto_logout, inputs=[hidden_user_role, hidden_last_login], outputs=[logout_status, hidden_user_role, hidden_last_login, admin_tab])
 
 if __name__ == "__main__":
     demo.launch()
