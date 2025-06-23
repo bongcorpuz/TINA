@@ -72,3 +72,10 @@ def export_logs_csv(file_path="logs_export.csv"):
         writer.writerows(rows)
 
     return os.path.abspath(file_path)
+
+def view_logs():
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT username, query, response, timestamp FROM logs ORDER BY timestamp DESC")
+        return c.fetchall()
+
