@@ -1,3 +1,4 @@
+# auth.py
 import bcrypt
 import sqlite3
 from datetime import datetime, timedelta
@@ -22,7 +23,7 @@ def is_locked_out(user):
         if datetime.now() - last_attempt < LOCKOUT_DURATION:
             return True
         else:
-            RATE_LIMIT[user] = (0, datetime.now())  # Reset after lockout duration
+            RATE_LIMIT[user] = (0, datetime.now())
     return False
 
 def record_attempt(user):
@@ -31,6 +32,32 @@ def record_attempt(user):
         RATE_LIMIT[user] = (1, datetime.now())
     else:
         RATE_LIMIT[user] = (attempts + 1, datetime.now())
+
+def authenticate_user(username, password):
+    if is_locked_out(username):
+        return None
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT password FROM subscribers WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        if row and verify_password(password, row[0]):
+            RATE_LIMIT[username] = (0, datetime.now())
+            # Default role assignment logic
+            return "admin" if username == "admin" else "user"
+        else:
+            record_attempt(username)
+            return None
+
+def register_user(username, password):
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM subscribers WHERE username = ?", (username,))
+        if cursor.fetchone():
+            return False
+        hashed = hash_password(password)
+        cursor.execute("INSERT INTO subscribers (username, password) VALUES (?, ?)", (username, hashed))
+        conn.commit()
+        return True
 
 def login_user(user, pw):
     if is_locked_out(user):
@@ -41,7 +68,7 @@ def login_user(user, pw):
         cursor.execute("SELECT password, subscription_level, subscription_expires FROM subscribers WHERE username = ?", (user,))
         row = cursor.fetchone()
         if row and verify_password(pw, row[0]):
-            RATE_LIMIT[user] = (0, datetime.now())  # Reset counter on success
+            RATE_LIMIT[user] = (0, datetime.now())
             expires = row[2] or ""
             plan = row[1]
             return f"Logged in as {user} | Plan: {plan} | Expires: {expires}", ""
@@ -72,3 +99,6 @@ def renew_subscription(user, plan):
                        (plan, new_expiry, user))
         conn.commit()
     return f"Subscription for {user} renewed to {plan} until {new_expiry}."
+
+def is_admin(username):
+    return username == "admin"
