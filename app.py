@@ -3,24 +3,43 @@ import gradio as gr
 import openai
 import os
 from dotenv import load_dotenv
-
 from database import (
     init_db,
     log_query,
     export_logs_csv,
     view_logs,
     delete_log_by_id,
-    view_summaries
+    view_summaries,
+    store_file_text,
+    has_uploaded_knowledge
 )
 from auth import login_user, signup_user, renew_subscription
-from file_utils import save_file, is_valid_file
+from file_utils import save_file, is_valid_file, extract_text_from_file, semantic_search
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 init_db()
 
-# ---- Gradio functions ----
+PH_TAX_KEYWORDS = [
+    "tax", "taxes", "taxation", "philippine tax", "philippine taxation", "taxpayer", "tax return",
+    "bir", "bureau of internal revenue", "nirc", "tax code", "tax law", "tax rules",
+    "bir form", "bir forms", "form 2550q", "form 2551q", "form 1701", "form 1702", "form 1601e",
+    "form 1601f", "form 2316", "tax forms", "file tax", "efile", "efps", "ebirforms",
+    "vat", "withholding tax", "percentage tax", "income tax", "business tax", "estate tax", "donor's tax",
+    "capital gains tax", "excise tax", "local tax", "tax relief", "tax exemption", "tax amnesty",
+    "revenue regulation", "revenue memorandum", "rr", "rr no.", "rmc", "rmc no.",
+    "bir circular", "bir issuance", "bir advisory",
+    "tax audit", "tax assessment", "tax clearance", "tax refund", "tax credit", "tax evasion", "tax fraud",
+    "tax penalty", "tax computation", "tax calculator", "etin", "tin", "register with bir",
+    "bir website", "bir hotline", "bir branch", "bir rdo", "rdo code"
+]
+
+MAX_ANSWER_LENGTH = 1000
+
+def is_ph_tax_query(text):
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in PH_TAX_KEYWORDS)
 
 def gr_login(username, password, session_state):
     msg, err = login_user(username, password)
@@ -33,21 +52,46 @@ def gr_signup(username, password):
     return signup_user(username, password)
 
 def gr_upload(file, session_state):
-    if "username" not in session_state:
-        return "Please login first."
+    if session_state.get("username") != "admin":
+        return "Only admin can upload knowledge files."
     path, err = save_file(file)
-    return path if path else err
+    if not path:
+        return err
+    try:
+        extracted_text = extract_text_from_file(path)
+        store_file_text(path, extracted_text)
+        return f"Uploaded and indexed: {os.path.basename(path)}"
+    except Exception as e:
+        return f"Failed to process file: {str(e)}"
 
 def gr_query(input_text, session_state):
     if "username" not in session_state:
         return "Login required."
+    if not is_ph_tax_query(input_text):
+        return "TINA only answers questions related to Philippine taxation and BIR regulations."
+
     try:
+        docs = semantic_search(input_text)
+        if not docs:
+            context = "No relevant documents found."
+            fallback_note = "⚠️ Note: No internal reference matched. Answer is based on general knowledge."
+        else:
+            context = "\n---\n".join(docs)
+            fallback_note = ""
+
+        system_prompt = "You are a helpful assistant expert in Philippine taxation. Use the following documents as reference if needed."
+
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": input_text}]
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{input_text}"}
+            ]
         )
         answer = response.choices[0].message.content
-        log_query(session_state["username"], input_text, "", answer)
+        if fallback_note:
+            answer = f"{fallback_note}\n\n" + answer[:MAX_ANSWER_LENGTH] + ('...' if len(answer) > MAX_ANSWER_LENGTH else '')
+        log_query(session_state["username"], input_text, context, answer)
         return answer
     except Exception as e:
         return f"OpenAI Error: {str(e)}"
@@ -70,8 +114,7 @@ def gr_export_csv(session_state):
 def gr_view_summaries():
     return view_summaries()
 
-# ---- Gradio UI ----
-with gr.Blocks() as demo:
+with gr.Blocks(title="TINA - Tax Information and Navigation Assistant (Powered by Bong Corpuz & Co. CPAs)") as demo:
     session_state = gr.State({})
 
     with gr.Tab("Login"):
