@@ -1,14 +1,30 @@
 import os
 import shutil
 from datetime import datetime
-import fitz  # PyMuPDF
-from PIL import Image
 import pytesseract
+from PIL import Image
+import fitz  # PyMuPDF
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+import torch
+from docx import Document
 
 UPLOAD_DIR = "knowledge_files"
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".jpg", ".jpeg", ".png"}
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".jpg", ".jpeg", ".png", ".doc", ".docs"}
 MAX_FILE_SIZE_MB = 5
+INDEX_FILE = "faiss_index.idx"
+DOC_FILE = "doc_store.txt"
 
+MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+DIM = 384
+faiss_index = faiss.IndexFlatL2(DIM)
+DOCUMENTS = []
+
+if os.path.exists(INDEX_FILE) and os.path.exists(DOC_FILE):
+    faiss_index = faiss.read_index(INDEX_FILE)
+    with open(DOC_FILE, "r", encoding="utf-8") as f:
+        DOCUMENTS = f.read().split("\n\n" + ("=" * 40) + "\n\n")
 
 def is_valid_file(file):
     ext = os.path.splitext(file.name)[-1].lower()
@@ -20,7 +36,6 @@ def is_valid_file(file):
     if size_mb > MAX_FILE_SIZE_MB:
         return False, f"File too large. Max size: {MAX_FILE_SIZE_MB}MB."
     return True, ""
-
 
 def save_file(file):
     if not file:
@@ -39,29 +54,39 @@ def save_file(file):
 
     return save_path, ""
 
+def extract_text_from_file(path):
+    ext = os.path.splitext(path)[-1].lower()
+    try:
+        if ext == ".pdf":
+            doc = fitz.open(path)
+            text = "\n".join([page.get_text() for page in doc])
+            return text
+        elif ext in [".jpg", ".jpeg", ".png"]:
+            return pytesseract.image_to_string(Image.open(path))
+        elif ext in [".doc", ".docs"]:
+            try:
+                doc = Document(path)
+                return "\n".join([para.text for para in doc.paragraphs])
+            except Exception as docx_err:
+                return f"Error reading DOC file: {str(docx_err)}"
+        else:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception as e:
+        return f"Error extracting text: {str(e)}"
 
-def extract_text_from_file(file_path):
-    ext = os.path.splitext(file_path)[-1].lower()
-    if ext == ".pdf":
-        try:
-            text = ""
-            doc = fitz.open(file_path)
-            for page in doc:
-                text += page.get_text()
-            return text.strip()
-        except Exception as e:
-            return f"Error reading PDF: {str(e)}"
-    elif ext in {".jpg", ".jpeg", ".png"}:
-        try:
-            img = Image.open(file_path)
-            return pytesseract.image_to_string(img).strip()
-        except Exception as e:
-            return f"Error processing image: {str(e)}"
-    elif ext in {".txt", ".md"}:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read().strip()
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
-    else:
-        return "Unsupported file format."
+def semantic_search(query, top_k=3):
+    if not DOCUMENTS or not faiss_index.ntotal:
+        return []
+    query_emb = MODEL.encode(query).astype(np.float32)
+    D, I = faiss_index.search(np.array([query_emb]), top_k)
+    return [DOCUMENTS[i] for i in I[0] if i < len(DOCUMENTS)]
+
+def index_document(text):
+    embedding = MODEL.encode(text).astype(np.float32)
+    faiss_index.add(np.array([embedding]))
+    DOCUMENTS.append(text)
+
+    with open(DOC_FILE, "w", encoding="utf-8") as f:
+        f.write("\n\n" + ("=" * 40) + "\n\n".join(DOCUMENTS))
+    faiss.write_index(faiss_index, INDEX_FILE)
