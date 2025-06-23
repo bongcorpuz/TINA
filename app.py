@@ -105,7 +105,7 @@ with gr.Blocks(title="TINA: Tax Information Navigation Assistant") as demo:
             return "Session expired.", "guest", 0, gr.update(visible=False)
         return gr.update(), gr.update(), gr.update(), gr.update()
 
-    gr.Timer(interval=60, fn=auto_logout, inputs=[user_role, last_login_time], outputs=[logout_status, user_role, last_login_time, admin_tab])
+    demo.load(fn=auto_logout, inputs=[user_role, last_login_time], outputs=[logout_status, user_role, last_login_time, admin_tab])
 
 if __name__ == "__main__":
     demo.launch()
