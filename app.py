@@ -28,8 +28,8 @@ def handle_ask(question):
         results = [fallback_to_chatgpt(question)]
     return "\n\n---\n\n".join(results)
 
-with gr.Blocks() as demo:
-    gr.Markdown("# TINA: Tax Inquiry & Navigator Assistant")
+with gr.Blocks(title="TINA - Tax Information Navigation Assistant") as demo:
+    gr.Markdown("# 🇵🇭 TINA: Tax Information & Navigation Assistant")
     with gr.Tab("Login"):
         gr.Textbox(label="Username")
         gr.Textbox(label="Password", type="password")
