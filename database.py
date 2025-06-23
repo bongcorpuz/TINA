@@ -79,3 +79,10 @@ def view_logs():
         c.execute("SELECT username, query, response, timestamp FROM logs ORDER BY timestamp DESC")
         return c.fetchall()
 
+def delete_log_by_id(log_id: int):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM logs WHERE rowid = ?", (log_id,))
+        conn.commit()
+        return f"Log ID {log_id} deleted."
+
