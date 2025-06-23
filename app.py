@@ -16,7 +16,7 @@ from file_utils import (
     load_or_create_faiss_index
 )
 from auth import authenticate_user, register_user, is_admin
-from database import log_query, get_conn, init_db
+from database import log_query, get_conn, init_db, store_file_text
 
 import os, logging, hashlib
 from functools import lru_cache
@@ -82,7 +82,8 @@ def handle_upload(file):
 
     contents = file.read()
     digest = hashlib.sha256(contents).hexdigest()
-    file_hash_path = os.path.join("knowledge_files", f"{digest}.txt")
+    ext = os.path.splitext(file.name)[1].lower()
+    file_hash_path = os.path.join("knowledge_files", f"{digest}{ext}")
 
     if os.path.exists(file_hash_path):
         return f"⚠ File already uploaded previously. Skipping duplicate."
@@ -90,9 +91,11 @@ def handle_upload(file):
     with open(file_hash_path, "wb") as f:
         f.write(contents)
 
-    text = extract_text_from_file(file_hash_path)
-    index_document(text)
-    snippet = text[:300].strip().replace("\n", " ") + ("..." if len(text) > 300 else "")
+    extracted_text = extract_text_from_file(file_hash_path)
+    index_document(extracted_text)
+    store_file_text(f"{digest}.txt", extracted_text)
+
+    snippet = extracted_text[:300].strip().replace("\n", " ") + ("..." if len(extracted_text) > 300 else "")
     return f"✅ File '{file.name}' uploaded and indexed.\n\n📄 Extract Preview:\n{snippet}"
 
 def count_guest_queries():
