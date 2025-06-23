@@ -12,7 +12,6 @@ short_description: Tax Information Navigation Assistant
 ---
 
 ![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
-![Test](https://github.com/your-user/tina/actions/workflows/python-app.yml/badge.svg)
 
 # 🇵🇭 TINA: Tax Information and Navigation Assistant
 
@@ -38,6 +37,9 @@ TINA is your expert chatbot assistant for Philippine tax compliance, BIR regulat
 ```bash
 git clone https://huggingface.co/spaces/bongcorpuz/TINA
 cd TINA
+
+# Optional: Check & install system dependencies (OCR, LibreOffice, etc.)
+chmod +x setup.sh && ./setup.sh
 
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -75,6 +77,7 @@ EMAIL_PASS=your-app-password
 🔺 query_log.db         # SQLite DB
 🔺 .env                 # API keys
 🔺 test_file_utils.py   # File handling test cases
+🔺 setup.sh             # System dependency installer
 ```
 
 ---
