@@ -1,0 +1,129 @@
+tax
+taxation
+tax return
+income tax
+VAT (value-added tax)
+withholding tax
+tax rate
+tax table
+tax due
+tax exemption
+BIR
+Bureau of Internal Revenue
+1701
+1701A
+1701Q
+1702
+1702Q
+1702RT
+2551Q
+2550Q
+2316
+0605
+2307
+2306
+1601C
+1601EQ
+0619E
+TIN
+taxpayer identification number
+tax identification number
+COR
+certificate of registration
+RDO
+revenue district office
+eFPS
+eBIRForms
+BIR form
+OR (official receipt)
+sales invoice
+invoice
+books of accounts
+billing invoice
+business permit
+supplentary receipt
+tax mapping
+ATP
+tax audit
+authority to print
+tax code
+compromise penalty
+deficiency tax
+surcharge
+interest
+assessment
+tax evasion
+TRAIN law
+CREATE law
+tax compliance
+tax clearance
+revenue regulation
+revenue memorandum circular
+BIR ruling
+input tax
+output tax
+non-VAT
+percentage tax
+EWT (expanded withholding tax)
+CWT (creditable withholding tax)
+FWT (final withholding tax)
+quarterly income tax
+annual income tax
+BIR audit
+letter of authority (LOA)
+tax compliance verification drive (TCVD)
+letter notice (LN)
+tax investigation
+tax assessment notice
+preliminary assessment notice (PAN)
+final assessment notice (FAN)
+notice of discrepancy (NOD)
+BIR tax remedy
+substituted filing
+tax ruling
+tax clearance certificate
+National Internal Revenue Code (NIRC)
+section 204
+section 232
+section 236
+tax code of 1997
+amended NIRC
+tax reform act
+eServices
+eBIR
+eTIN
+ORUS
+eAccReg
+BIR registration portal
+online tax payment
+ePayment
+GCash BIR payment
+LandBank Link.Biz
+revenue memorandum order (RMO)
+revenue memorandum circular (RMC)
+revenue regulation (RR)
+tax jurisprudence
+tax doctrine
+tax treaty
+double taxation agreement (DTA)
+tax amnesty act
+estate tax amnesty
+CIR vs. Court of Tax Appeals
+landmark tax cases
+CTA decision
+tax deficiency assessment
+tax avoidance vs tax evasion
+voluntary assessment
+due process in tax audit
+amended nirc
+bir audit
+bir registration portal
+bir tax remedy
+cir vs. court of tax appeals
+cta decision
+double taxation agreement
+due process in tax audit
+eaccreg
+epayment
+
+
