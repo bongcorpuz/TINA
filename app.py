@@ -3,8 +3,8 @@ import time
 import os
 import logging
 import hashlib
-import openai
 from functools import lru_cache
+from openai import OpenAI
 from file_utils import (
     save_file,
     is_valid_file,
@@ -16,8 +16,7 @@ from file_utils import (
 from auth import authenticate_user, register_user, is_admin
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-client = openai
+client = OpenAI()
 
 try:
     init_db()
@@ -33,19 +32,17 @@ MAX_GUEST_QUESTIONS = 5
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
-    if not client:
-        return "[OpenAI API not configured]"
     for attempt in range(3):
         try:
-            response = client.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
-            return response.choices[0].message["content"].strip()
+            return response.choices[0].message.content.strip()
         except Exception as e:
             logging.error(f"[ChatGPT Retry {attempt+1}] {e}")
             time.sleep(1.5)
-    return f"[ChatGPT Error] All retries failed."
+    return "[ChatGPT Error] All retries failed."
 
 def is_tax_related(question):
     keyword_file = "tax_keywords.txt"
@@ -66,11 +63,11 @@ def count_guest_queries():
 
 def handle_ask(question):
     if not is_tax_related(question):
-        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), gr.Tabs.update(selected=1)
+        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), None
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
+        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), None
 
     if not has_uploaded_knowledge():
         logging.info("No documents in knowledge base. Using ChatGPT directly.")
@@ -102,7 +99,7 @@ def handle_ask(question):
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
-    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.Tabs.update(selected=0)
+    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), None
 
 with gr.Blocks() as interface:
     gr.Markdown("""
