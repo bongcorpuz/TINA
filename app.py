@@ -1,4 +1,3 @@
-#-------------app.py------------
 import gradio as gr
 import time
 import os
@@ -15,7 +14,7 @@ from file_utils import (
     load_or_create_faiss_index
 )
 from auth import authenticate_user, register_user, is_admin
-from database import log_query, get_conn, init_db, store_file_text
+from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 client = openai
@@ -73,23 +72,29 @@ def handle_ask(question):
     if used >= MAX_GUEST_QUESTIONS:
         return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
 
-    try:
-        results = semantic_search(question)
-        source = "semantic"
-    except Exception as e:
-        logging.warning(f"[Fallback] Semantic search error: {e}")
+    if not has_uploaded_knowledge():
+        logging.info("No documents in knowledge base. Using ChatGPT directly.")
         fallback_answer = fallback_to_chatgpt(question)
         source = "chatgpt"
         results = [fallback_answer]
+    else:
+        try:
+            results = semantic_search(question)
+            source = "semantic"
+        except Exception as e:
+            logging.warning(f"[Fallback] Semantic search error: {e}")
+            fallback_answer = fallback_to_chatgpt(question)
+            source = "chatgpt"
+            results = [fallback_answer]
 
-        content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
-        filename = f"chatgpt_{content_hash}.txt"
-        path = os.path.join("knowledge_files", filename)
-        if not os.path.exists(path):
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(fallback_answer)
-            index_document(fallback_answer)
-            store_file_text(filename, fallback_answer)
+            content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
+            filename = f"chatgpt_{content_hash}.txt"
+            path = os.path.join("knowledge_files", filename)
+            if not os.path.exists(path):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(fallback_answer)
+                index_document(fallback_answer)
+                store_file_text(filename, fallback_answer)
 
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
