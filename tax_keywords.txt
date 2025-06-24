@@ -125,5 +125,208 @@ double taxation agreement
 due process in tax audit
 eaccreg
 epayment
-
+BIR Form 1701B
+BIR Form 2550M
+BIR Form 2200M
+BIR Form 1707A
+BIR Form 1707
+BIR Form 2000
+BIR Form 2313
+BIR Form 1901
+BIR Form 1902
+BIR Form 1903
+BIR Form 1904
+BIR Form 1905
+BIR Form 1906
+BIR Form 0605
+sole proprietor
+self-employed
+mixed-income earner
+non-resident citizen
+resident alien
+domestic corporation
+foreign corporation
+branch office
+regional operating headquarters (ROHQ)
+general professional partnership (GPP)
+VAT-registered
+non-VAT registered
+micro enterprise
+small and medium enterprise (SME)
+large taxpayer
+allowable deductions
+optional standard deduction (OSD)
+itemized deduction
+net taxable income
+gross income
+gross receipts
+tax base
+tax shield
+depreciation expense
+cost of sales
+cost of services
+tax litigation
+tax remedy procedures
+compromise settlement
+abatement
+protest letter
+motion for reconsideration
+petition for review
+tax deficiency protest
+prescriptive period
+right to due process
+capital gains tax (CGT)
+donorâ€™s tax
+estate tax
+excise tax
+fringe benefits tax (FBT)
+documentary stamp tax (DST)
+community tax (cedula)
+local business tax
+real property tax
+amusement tax
+journal
+general ledger
+subsidiary ledger
+official receipts logbook
+sales book
+purchase book
+accounting records
+financial statements
+audited financial statements (AFS)
+woRDO
+revenue district office
+working papers
+surveillance
+benchmarking
+tax compliance check
+tax reconciliation
+audit findings
+tax fraud
+benchmark ratio
+third-party information
+electronic letter of authority (eLOA)
+reinvestigation
+Digital TIN
+eSubmission
+eAccReg System
+Taxpayer Service Center
+eTSPCert
+Electronic Filing and Payment System (eFPS)
+BIR eComplaint System
+online registration update
+eAFS (electronic AFS submission)
+BIR Taxpayer Portal
+tax arbitrage
+tax neutrality
+tax planning
+tax avoidance
+transfer pricing
+tax burden
+tax incidence
+tax base erosion
+vertical equity
+horizontal equity
+RDO
+revenue district office
+TIN verification
+eAFS portal
+BIR tax calendar
+zonal value
+asset declaration
+taxpayer account management program (TAMP)
+voluntary payment
+tax compliance certificate
+non-filer
+tax delinquent
+substituted filing (2316)
+non-operating business
+tax clearance for bidding
+inactive business
+revocation of COR
+penalty waiver
+late filing penalty
+late payment penalty
+interest surcharge
+compromise penalty matrix
+open case
+unfiled returns
+tax enforcement
+closure order
+criminal liability for tax evasion
+foreign tax credit
+OECD
+BEPS
+transfer pricing adjustment
+armâ€™s length principle
+double taxation relief
+tax sparing rule
+permanent establishment
+treaty override
+foreign source income
+taxpayer charter
+involuntary closure
+judicial remedy
+administrative remedy
+amicable settlement
+letter of protest
+motion for reinvestigation
+motion for reconsideration (MR)
+rule of strict interpretation
+no audit policy
+Department of Finance (DOF)
+Court of Tax Appeals (CTA)
+Supreme Court (SC)
+Local Government Unit (LGU)
+Barangay clearance
+Municipal license
+Provincial Treasurer
+Bureau of Customs (BOC)
+COA (Commission on Audit)
+SSS and PhilHealth
+EFPS enrollment
+BIR eComplaint
+BIR Mobile TIN Verifier
+BIR eAppointment
+eServices dashboard
+electronic filing confirmation
+email tax receipt
+Landbank online payment
+DBP online tax payment
+MyEG tax payment
+GCash tax payment
+Maya tax payment
+QR Ph for tax
+BIR QR Code system
+RevSys
+ORS (Online Registration System)
+tax declaration
+real property tax (RPT)
+tax delinquency notice
+property tax amnesty
+real estate tax clearance
+zonal valuation
+assessed value
+tax mapping for properties
+idle land tax
+property transfer tax
+excise tax return
+import duties
+customs clearance
+importer accreditation
+BOC e2m system
+export tax
+anti-smuggling unit
+post-clearance audit
+tariff rate
+excise stamps
+mining tax
+ecozone tax
+BPO tax incentive
+PEZA tax exemption
+VAT on digital services
+fuel marking
+gaming tax
+franchise tax
+telecom tax
 
