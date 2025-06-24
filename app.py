@@ -17,6 +17,7 @@ from auth import authenticate_user, register_user, is_admin
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+print("OpenAI API Key Loaded:", openai.api_key is not None)
 
 try:
     init_db()
@@ -32,6 +33,7 @@ MAX_GUEST_QUESTIONS = 5
 @lru_cache(maxsize=32)
 def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
+    last_error = ""
     for attempt in range(3):
         try:
             response = openai.ChatCompletion.create(
@@ -40,9 +42,10 @@ def fallback_to_chatgpt(prompt: str) -> str:
             )
             return response.choices[0].message["content"].strip()
         except Exception as e:
-            logging.error(f"[ChatGPT Retry {attempt+1}] {e}")
+            last_error = str(e)
+            logging.error(f"[ChatGPT Retry {attempt+1}] {last_error}")
             time.sleep(1.5)
-    return "[ChatGPT Error] All retries failed."
+    return f"[ChatGPT Error] All retries failed. Reason: {last_error}"
 
 def is_tax_related(question):
     keyword_file = "tax_keywords.txt"
