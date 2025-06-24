@@ -70,7 +70,7 @@ def handle_ask(question):
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
+        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
 
     if not has_uploaded_knowledge():
         logging.info("No documents in knowledge base. Using ChatGPT directly.")
@@ -96,14 +96,18 @@ def handle_ask(question):
                 index_document(fallback_answer)
                 store_file_text(filename, fallback_answer)
 
+    if not results or not isinstance(results, list):
+        results = ["[No relevant knowledge found. Using ChatGPT fallback.]"]
+
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
     return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.Tabs.update(selected=0)
 
-# UI with login/register and Ask tab
 with gr.Blocks() as interface:
-    gr.Markdown("# 🇵🇭 TINA: Tax Info Navigation Assistant")
+    gr.Markdown("""
+    # 🇵🇭 TINA: Tax Information Navigation Assistant
+    """)
     login_state = gr.State("")
 
     with gr.Tabs() as tabs:
@@ -150,7 +154,13 @@ with gr.Blocks() as interface:
             upload_btn = gr.Button("Upload")
             upload_btn.click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
-# Required for Hugging Face Spaces
+    gr.HTML("""
+    <hr>
+    <div style='text-align:center; font-size: 14px; color: #555;'>
+        <img src='https://www.bongcorpuz.com/favicon.ico' height='20' style='vertical-align:middle;margin-right:8px;'>
+        <a href='https://www.bongcorpuz.com' target='_blank'><strong>powered by: Bong Corpuz & Co. CPAs</strong></a>
+    </div>
+    """)
 
 def launch():
     return interface
