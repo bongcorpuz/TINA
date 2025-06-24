@@ -16,8 +16,9 @@ from file_utils import (
 from auth import authenticate_user, register_user, is_admin
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
+# For openai==0.27.8 compatibility
 openai.api_key = os.getenv("OPENAI_API_KEY")
-print("OpenAI API Key Loaded:", openai.api_key is not None)
+print("OpenAI API Key Loaded:", openai.api_key)
 
 try:
     init_db()
