@@ -1,6 +1,6 @@
 # ------------------ requirements.txt ------------------
 # Core dependencies 
-openai==1.0.0
+openai==0.27.8
 anyio==3.7.1
 gradio==5.34.2
 python-dotenv==1.0.1
