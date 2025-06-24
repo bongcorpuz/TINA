@@ -63,11 +63,11 @@ def count_guest_queries():
 
 def handle_ask(question):
     if not is_tax_related(question):
-        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), None
+        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False)
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), None
+        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True)
 
     if not has_uploaded_knowledge():
         logging.info("No documents in knowledge base. Using ChatGPT directly.")
@@ -99,7 +99,7 @@ def handle_ask(question):
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
-    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), None
+    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False)
 
 with gr.Blocks() as interface:
     gr.Markdown("""
@@ -131,7 +131,7 @@ with gr.Blocks() as interface:
             q = gr.Textbox(label="Ask a Tax Question")
             a = gr.Textbox(label="Answer")
             error_box = gr.Textbox(visible=False)
-            q.submit(fn=handle_ask, inputs=q, outputs=[a, error_box, tabs])
+            q.submit(fn=handle_ask, inputs=q, outputs=[a, error_box])
 
         with gr.Tab("Admin Upload", id=2):
             file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
