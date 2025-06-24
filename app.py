@@ -1,3 +1,97 @@
+#-------app.py-----
+import gradio as gr
+import time
+import os
+import logging
+import hashlib
+import openai
+from functools import lru_cache
+from file_utils import (
+    save_file,
+    is_valid_file,
+    extract_text_from_file,
+    semantic_search,
+    index_document,
+    load_or_create_faiss_index
+)
+from auth import authenticate_user, register_user, is_admin
+from database import log_query, get_conn, init_db, store_file_text
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai
+
+try:
+    init_db()
+except Exception as e:
+    logging.error(f"❌ Failed to initialize database: {e}")
+    raise SystemExit("Database initialization failed. Please check database.py setup.")
+
+load_or_create_faiss_index()
+
+SESSION_TIMEOUT = 1800
+MAX_GUEST_QUESTIONS = 5
+
+@lru_cache(maxsize=32)
+def fallback_to_chatgpt(prompt: str) -> str:
+    logging.warning("Fallback to ChatGPT activated.")
+    if not client:
+        return "[OpenAI API not configured]"
+    for attempt in range(3):
+        try:
+            response = client.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message["content"].strip()
+        except Exception as e:
+            logging.error(f"[ChatGPT Retry {attempt+1}] {e}")
+            time.sleep(1.5)
+    return f"[ChatGPT Error] All retries failed."
+
+def is_tax_related(question):
+    tax_keywords = [
+        "taxpayer identification number", "tin"
+    ]
+    q = question.lower()
+    return any(word in q for word in tax_keywords)
+
+def count_guest_queries():
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest'")
+        return c.fetchone()[0]
+
+def handle_ask(question):
+    if not is_tax_related(question):
+        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False)
+
+    used = count_guest_queries()
+    if used >= MAX_GUEST_QUESTIONS:
+        return gr.update(visible=False), gr.update(value="❌ Guest users can only ask up to 5 questions. Please sign up to continue.", visible=True), gr.Tabs.update(selected=1)
+
+    try:
+        results = semantic_search(question)
+        source = "semantic"
+    except Exception as e:
+        logging.warning(f"[Fallback] Semantic search error: {e}")
+        fallback_answer = fallback_to_chatgpt(question)
+        source = "chatgpt"
+        results = [fallback_answer]
+
+        content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
+        filename = f"chatgpt_{content_hash}.txt"
+        path = os.path.join("knowledge_files", filename)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(fallback_answer)
+            index_document(fallback_answer)
+            store_file_text(filename, fallback_answer)
+
+    answer = "\n\n---\n\n".join(results)
+    log_query("guest", question, source, answer)
+    remaining = MAX_GUEST_QUESTIONS - used - 1
+    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.Tabs.update(selected=0)
+
 # UI with login/register and Ask tab
 with gr.Blocks() as interface:
     gr.Markdown("# 🇵🇭 TINA: Tax Info Navigation Assistant")
@@ -47,6 +141,7 @@ with gr.Blocks() as interface:
             upload_btn.click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
 # Required for Hugging Face Spaces
+
 def launch():
     return interface
 
