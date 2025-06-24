@@ -66,7 +66,7 @@ def count_guest_queries():
 
 def handle_ask(question):
     if not is_tax_related(question):
-        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False)
+        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), gr.Tabs.update(selected=1)
 
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
@@ -129,7 +129,8 @@ with gr.Blocks() as interface:
         with gr.Tab("Ask TINA", id=1):
             q = gr.Textbox(label="Ask a Tax Question")
             a = gr.Textbox(label="Answer")
-            q.submit(fn=handle_ask, inputs=q, outputs=a)
+            error_box = gr.Textbox(visible=False)
+            q.submit(fn=handle_ask, inputs=q, outputs=[a, error_box, tabs])
 
         with gr.Tab("Admin Upload", id=2):
             file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
