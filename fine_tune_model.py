@@ -1,12 +1,22 @@
-# fine_tune_model.py
 import os
 import torch
+import random
 import sqlite3
 from datetime import datetime
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling,
+    BitsAndBytesConfig
+)
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import BitsAndBytesConfig
+
+# Set seed for reproducibility
+random.seed(42)
+torch.manual_seed(42)
 
 # Create logs directory
 os.makedirs("logs", exist_ok=True)
@@ -14,13 +24,20 @@ os.makedirs("logs", exist_ok=True)
 def load_logs():
     conn = sqlite3.connect("query_log.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT query, response FROM logs WHERE context='semantic' OR context='lora'")
+    cursor.execute("""
+        SELECT query, response FROM logs
+        WHERE context IN ('semantic', 'lora', 'chatgpt')
+    """)
     rows = cursor.fetchall()
     conn.close()
-    return [f"Q: {q}\nA: {a}" for q, a in rows if q and a]
+    return [f"Q: {q}\nA: {a}" for q, a in rows if q and a and len(q) > 8 and len(a) > 10]
 
 def train():
     qa_texts = load_logs()
+    if not qa_texts:
+        print("❌ No Q&A pairs found. Aborting training.")
+        return
+
     dataset = Dataset.from_dict({"text": qa_texts})
     tokenizer = AutoTokenizer.from_pretrained("tiiuae/falcon-rw-1b")
 
@@ -69,7 +86,7 @@ def train():
         save_total_limit=2,
         save_steps=10,
         logging_steps=5,
-        report_to="none"
+        report_to="csv"  # Saves logs to CSV for review
     )
 
     trainer = Trainer(
@@ -82,7 +99,7 @@ def train():
     trainer.train()
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    print(f"✅ Weekly fine-tuning complete. Model saved to '{output_dir}'")
+    print(f"\u2705 Weekly fine-tuning complete. Model saved to '{output_dir}'")
 
 if __name__ == "__main__":
     train()
