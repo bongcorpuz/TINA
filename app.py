@@ -4,7 +4,7 @@ import os
 import logging
 import hashlib
 from functools import lru_cache
-from openai import OpenAI
+import openai
 from file_utils import (
     save_file,
     is_valid_file,
@@ -16,7 +16,7 @@ from file_utils import (
 from auth import authenticate_user, register_user, is_admin
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
-client = OpenAI()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 try:
     init_db()
@@ -34,11 +34,11 @@ def fallback_to_chatgpt(prompt: str) -> str:
     logging.warning("Fallback to ChatGPT activated.")
     for attempt in range(3):
         try:
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}]
             )
-            return response.choices[0].message.content.strip()
+            return response.choices[0].message["content"].strip()
         except Exception as e:
             logging.error(f"[ChatGPT Retry {attempt+1}] {e}")
             time.sleep(1.5)
