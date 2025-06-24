@@ -1,4 +1,4 @@
-#-------app.py-----
+#-------------app.py------------
 import gradio as gr
 import time
 import os
@@ -49,11 +49,15 @@ def fallback_to_chatgpt(prompt: str) -> str:
     return f"[ChatGPT Error] All retries failed."
 
 def is_tax_related(question):
-    tax_keywords = [
-        "taxpayer identification number", "tin"
-    ]
+    keyword_file = "tax_keywords.txt"
+    keywords = []
+    try:
+        with open(keyword_file, "r", encoding="utf-8") as f:
+            keywords = [line.strip().lower() for line in f if line.strip()]
+    except Exception as e:
+        logging.warning(f"Keyword file not found or unreadable: {e}")
     q = question.lower()
-    return any(word in q for word in tax_keywords)
+    return any(word in q for word in keywords)
 
 def count_guest_queries():
     with get_conn() as conn:
