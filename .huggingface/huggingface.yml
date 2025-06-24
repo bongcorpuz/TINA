@@ -1,11 +1,26 @@
 sdk: gradio
+sdk_version: 5.34.2
 app_file: app.py
 python_version: 3.10
 
 env:
   - OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
+  - TINA_ADMIN_PASS: ${secrets.TINA_ADMIN_PASS}
+  - EMAIL_USER: ${secrets.EMAIL_USER}
+  - EMAIL_PASS: ${secrets.EMAIL_PASS}
+  - MAIL_HOST: ${secrets.MAIL_HOST}
+  - EMAIL_PORT: ${secrets.EMAIL_PORT}
 
-# Optional testing phase
 run:
+  # ✅ Install all Python dependencies
   - pip install -r requirements.txt
+
+  # ✅ Run setup for system packages (OCR, LibreOffice)
+  - chmod +x setup.sh
+  - ./setup.sh
+
+  # ✅ Health check before launching the app
+  - python healthcheck.py
+
+  # ✅ Run limited tests (optional but safe)
   - pytest --maxfail=1 --disable-warnings
