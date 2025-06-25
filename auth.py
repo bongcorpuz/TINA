@@ -23,7 +23,7 @@ RESET_RATE_LIMIT = defaultdict(lambda: (0, datetime.min))
 MAX_RESET_ATTEMPTS = 3
 RESET_WINDOW = timedelta(minutes=15)
 
-def register_user(email: str, password: str) -> str:
+def register_user(username: str, email: str, password: str) -> str:
     try:
         result = supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
@@ -33,7 +33,8 @@ def register_user(email: str, password: str) -> str:
         expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).date()
         supabase.table("profiles").insert({
             "id": user.id,
-            "username": email,
+            "username": username,
+            "email": email,
             "role": "user",
             "subscription_level": "free",
             "subscription_expires": expiry
