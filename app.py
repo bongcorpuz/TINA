@@ -15,11 +15,10 @@ from file_utils import (
     index_document,
     load_or_create_faiss_index
 )
-from auth import authenticate_user, register_user, is_admin
+from auth import authenticate_user, register_user, is_admin, send_password_reset, recover_user_email
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
 load_dotenv()
-
 openai.api_key = os.getenv("OPENAI_API_KEY")
 print("OpenAI API Key Loaded:", openai.api_key)
 
@@ -27,7 +26,7 @@ try:
     init_db()
 except Exception as e:
     logging.error(f"❌ Failed to initialize database: {e}")
-    raise SystemExit("Database initialization failed. Please check database.py setup.")
+    raise SystemExit("Database initialization failed.")
 
 load_or_create_faiss_index()
 
@@ -70,29 +69,25 @@ def count_guest_queries():
 
 def handle_ask(question):
     if not is_tax_related(question):
-        return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), gr.update()
-
+        return gr.update(value="❌ TINA only answers questions related to Philippine taxation."), gr.update(visible=False), gr.update()
     used = count_guest_queries()
     if used >= MAX_GUEST_QUESTIONS:
-        return gr.update(value=""), gr.update(value="❌ Guest users can only ask up to 5 questions. Please go to the Signup tab to register and continue.", visible=True), gr.update()
+        return gr.update(value=""), gr.update(value="❌ Guest users can only ask 5 questions."), gr.update()
 
     if not has_uploaded_knowledge():
-        logging.info("No documents in knowledge base. Using ChatGPT directly.")
         fallback_answer = fallback_to_chatgpt(question)
-        source = "chatgpt"
         results = [fallback_answer]
+        source = "chatgpt"
     else:
         try:
             results = semantic_search(question)
             source = "semantic"
         except Exception as e:
-            logging.warning(f"[Fallback] Semantic search error: {e}")
+            logging.warning(f"Semantic search error: {e}")
             fallback_answer = fallback_to_chatgpt(question)
-            source = "chatgpt"
             results = [fallback_answer]
-
-            content_hash = hashlib.sha256(fallback_answer.encode("utf-8")).hexdigest()
-            filename = f"chatgpt_{content_hash}.txt"
+            source = "chatgpt"
+            filename = f"chatgpt_{hashlib.sha256(fallback_answer.encode()).hexdigest()}.txt"
             path = os.path.join("knowledge_files", filename)
             if not os.path.exists(path):
                 with open(path, "w", encoding="utf-8") as f:
@@ -100,18 +95,13 @@ def handle_ask(question):
                 index_document(fallback_answer)
                 store_file_text(filename, fallback_answer)
 
-    if not results or not isinstance(results, list):
-        results = ["[No relevant knowledge found. Using ChatGPT fallback.]"]
-
     answer = "\n\n---\n\n".join(results)
     log_query("guest", question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1
-    return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.update()
+    return gr.update(value=answer + f"\n\n📌 {remaining}/5 guest questions left."), gr.update(visible=False), gr.update()
 
 with gr.Blocks() as interface:
-    gr.Markdown("""
-    # 🇵🇭 TINA: Tax Information Navigation Assistant
-    """)
+    gr.Markdown("# 🇵🇭 TINA: Tax Information Navigation Assistant")
     login_state = gr.State("")
 
     with gr.Tabs() as tabs:
@@ -126,13 +116,8 @@ with gr.Blocks() as interface:
                     return "❌ Login failed.", ""
                 return f"✅ Logged in as {profile['role']}", profile["id"]
 
-            login_btn = gr.Button("Login")
-            login_btn.click(handle_login, [login_user, login_pass], [login_result, login_state])
-
-            logout_btn = gr.Button("Logout")
-            def handle_logout():
-                return "Logged out.", ""
-            logout_btn.click(fn=handle_logout, inputs=None, outputs=[login_result, login_state])
+            gr.Button("Login").click(handle_login, [login_user, login_pass], [login_result, login_state])
+            gr.Button("Logout").click(fn=lambda: ("Logged out.", ""), inputs=None, outputs=[login_result, login_state])
 
         with gr.Tab("Ask TINA", id=1):
             q = gr.Textbox(label="Ask a Tax Question")
@@ -153,10 +138,25 @@ with gr.Blocks() as interface:
                     return "❌ Password must be at least 6 characters."
                 return register_user(username, email, password)
 
-            signup_btn = gr.Button("Signup")
-            signup_btn.click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
+            gr.Button("Signup").click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
 
-        with gr.Tab("Admin Upload", id=3):
+        with gr.Tab("Reset Password", id=3):
+            gr.Markdown("📧 Enter your email to reset password.")
+            reset_email = gr.Textbox(label="Email")
+            reset_result = gr.Textbox(label="Reset Status")
+            gr.Button("Send Reset Email").click(send_password_reset, inputs=reset_email, outputs=reset_result)
+
+        with gr.Tab("Recover Email", id=4):
+            gr.Markdown("🔎 Enter your username or part of it to recover email.")
+            recover_keyword = gr.Textbox(label="Keyword")
+            recover_result = gr.Textbox(label="Possible Matches")
+            gr.Button("Search Email").click(
+                fn=lambda k: "\n".join(recover_user_email(k)),
+                inputs=recover_keyword,
+                outputs=recover_result
+            )
+
+        with gr.Tab("Admin Upload", id=5):
             file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
             upload_result = gr.Textbox(label="Upload Status")
 
@@ -166,13 +166,12 @@ with gr.Blocks() as interface:
                 if not is_valid_file(file.name):
                     return "❌ Invalid file type."
                 path, _ = save_file(file)
-                extracted = extract_text_from_file(path)
-                index_document(extracted)
-                store_file_text(file.name, extracted)
+                text = extract_text_from_file(path)
+                index_document(text)
+                store_file_text(file.name, text)
                 return f"✅ Uploaded and indexed: {file.name}"
 
-            upload_btn = gr.Button("Upload")
-            upload_btn.click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
+            gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
     gr.HTML("""
     <hr>
