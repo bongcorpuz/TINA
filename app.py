@@ -3,6 +3,7 @@ import time
 import os
 import logging
 import hashlib
+import re
 from functools import lru_cache
 import openai
 from dotenv import load_dotenv
@@ -146,7 +147,11 @@ with gr.Blocks() as interface:
             signup_result = gr.Textbox(label="Signup Result")
 
             def handle_signup(username, email, password):
-                return register_user(username, email, password)
+                if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
+                    return "❌ Invalid email format."
+                if len(password) < 6:
+                    return "❌ Password must be at least 6 characters."
+                return register_user(email, password)
 
             signup_btn = gr.Button("Signup")
             signup_btn.click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
