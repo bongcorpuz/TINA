@@ -11,6 +11,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_ANON_KEY
 
+# Safety checks for required environment variables
 if not SUPABASE_URL:
     raise RuntimeError("❌ SUPABASE_URL is missing. Set it in environment variables or .env")
 if not SUPABASE_ANON_KEY:
@@ -34,35 +35,22 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        result = anon_supabase.auth.sign_up({
-            "email": email,
-            "password": password
-        })
+        # Email confirmation required: do not pass auto_confirm param
+        result = anon_supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
-
-        if not user or not getattr(user, "id", None):
-            logging.error(f"Signup error: Missing user or user ID. Full result: {result}")
-            return "❌ Signup failed. Please try again later."
-
-        user_id = user.id
-        logging.info(f"Registering user with ID: {user_id}")
+        if not user:
+            return "❌ Signup failed."
 
         expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).isoformat()
-
-        try:
-            service_supabase.table("profiles").insert({
-                "id": user_id,
-                "username": username,
-                "email": email,
-                "role": "user",
-                "subscription_level": "free",
-                "subscription_expires": expiry
-            }).execute()
-        except Exception as e:
-            logging.error(f"Profile insert error: {e}")
-            return f"❌ Signup failed. {e}"
-
-        return "✅ Signup successful. Please login."
+        service_supabase.table("profiles").insert({
+            "id": user.id,
+            "username": username,
+            "email": email,
+            "role": "user",
+            "subscription_level": "free",
+            "subscription_expires": expiry
+        }).execute()
+        return "✅ Signup successful. Please check your email to confirm before logging in."
     except Exception as e:
         logging.error(f"Signup error: {e}")
         return f"❌ Signup failed. {e}"
@@ -70,13 +58,13 @@ def register_user(username: str, email: str, password: str) -> str:
 def authenticate_user(email: str, password: str) -> dict | None:
     try:
         result = anon_supabase.auth.sign_in_with_password({"email": email, "password": password})
-        logging.info(f"Sign-in response: {result}")
         user = result.user
         if not user:
-            logging.warning(f"Sign-in failed: No user returned for {email}")
             return None
+        if not user.email_confirmed_at:
+            return {"error": "Email not confirmed"}
         profile = service_supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
-        return {"id": user.id, "email": email, **profile} if profile else None
+        return {"id": user.id, "email": email, "email_confirmed": True, **profile} if profile else None
     except Exception as e:
         logging.warning(f"Login failed for {email}: {e}")
         return None
