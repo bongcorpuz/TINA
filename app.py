@@ -67,16 +67,12 @@ def count_guest_queries():
         c.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest'")
         return c.fetchone()[0]
 
-def handle_ask(question, user):
+def handle_ask(question):
     if not is_tax_related(question):
         return gr.update(value="❌ TINA only answers questions related to Philippine taxation."), gr.update(visible=False), gr.update()
-
-    if user == "guest":
-        used = count_guest_queries()
-        if used >= MAX_GUEST_QUESTIONS:
-            return gr.update(value=""), gr.update(value="❌ Guest users can only ask 5 questions."), gr.update()
-    else:
-        used = 0
+    used = count_guest_queries()
+    if used >= MAX_GUEST_QUESTIONS:
+        return gr.update(value=""), gr.update(value="❌ Guest users can only ask 5 questions."), gr.update()
 
     if not has_uploaded_knowledge():
         fallback_answer = fallback_to_chatgpt(question)
@@ -100,13 +96,13 @@ def handle_ask(question, user):
                 store_file_text(filename, fallback_answer)
 
     answer = "\n\n---\n\n".join(results)
-    log_query(user, question, source, answer)
-    remaining = MAX_GUEST_QUESTIONS - used - 1 if user == "guest" else "∞"
-    return gr.update(value=answer + f"\n\n📌 {'Guest questions left: ' + str(remaining) if user == 'guest' else 'Logged in user'}"), gr.update(visible=False), gr.update()
+    log_query("guest", question, source, answer)
+    remaining = MAX_GUEST_QUESTIONS - used - 1
+    return gr.update(value=answer + f"\n\n📌 {remaining}/5 guest questions left."), gr.update(visible=False), gr.update()
 
 with gr.Blocks() as interface:
     gr.Markdown("# 🇵🇭 TINA: Tax Information Navigation Assistant")
-    login_state = gr.State("guest")
+    login_state = gr.State("")
 
     with gr.Tabs() as tabs:
         with gr.Tab("Login", id=0):
@@ -117,17 +113,19 @@ with gr.Blocks() as interface:
             def handle_login(u, p):
                 profile = authenticate_user(u, p)
                 if not profile:
-                    return "❌ Login failed.", "guest"
+                    return "❌ Login failed.", ""
+                if "error" in profile:
+                    return profile["error"], ""
                 return f"✅ Logged in as {profile['role']}", profile["id"]
 
             gr.Button("Login").click(handle_login, [login_user, login_pass], [login_result, login_state])
-            gr.Button("Logout").click(fn=lambda: ("Logged out.", "guest"), inputs=None, outputs=[login_result, login_state])
+            gr.Button("Logout").click(fn=lambda: ("Logged out.", ""), inputs=None, outputs=[login_result, login_state])
 
         with gr.Tab("Ask TINA", id=1):
             q = gr.Textbox(label="Ask a Tax Question")
             a = gr.Textbox(label="Answer")
             error_box = gr.Textbox(visible=False)
-            q.submit(fn=lambda question, uid: handle_ask(question, uid), inputs=[q, login_state], outputs=[a, error_box, tabs])
+            q.submit(fn=handle_ask, inputs=q, outputs=[a, error_box, tabs])
 
         with gr.Tab("Signup", id=2):
             signup_user = gr.Textbox(label="Username")
