@@ -9,8 +9,11 @@ import logging
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_ANON_KEY
+
+anon_supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+service_supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 PLAN_DURATIONS = {
     "free": 7,
@@ -25,13 +28,13 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        result = supabase.auth.sign_up({"email": email, "password": password})
+        result = anon_supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
         if not user:
             return "❌ Signup failed."
 
         expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).isoformat()
-        supabase.table("profiles").insert({
+        service_supabase.table("profiles").insert({
             "id": user.id,
             "username": username,
             "email": email,
@@ -46,11 +49,11 @@ def register_user(username: str, email: str, password: str) -> str:
 
 def authenticate_user(email: str, password: str) -> dict | None:
     try:
-        result = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        result = anon_supabase.auth.sign_in_with_password({"email": email, "password": password})
         user = result.user
         if not user:
             return None
-        profile = supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
+        profile = service_supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
         return {"id": user.id, "email": email, **profile} if profile else None
     except Exception as e:
         logging.warning(f"Login failed for {email}: {e}")
@@ -62,7 +65,7 @@ def renew_subscription(user_id: str, plan: str) -> str:
         return f"❌ Invalid plan: {plan}"
     expiry = (datetime.utcnow() + timedelta(days=duration)).isoformat()
     try:
-        supabase.table("profiles").update({
+        service_supabase.table("profiles").update({
             "subscription_level": plan,
             "subscription_expires": expiry
         }).eq("id", user_id).execute()
@@ -73,7 +76,7 @@ def renew_subscription(user_id: str, plan: str) -> str:
 
 def is_admin(user_id: str) -> bool:
     try:
-        res = supabase.table("profiles").select("role").eq("id", user_id).single().execute()
+        res = service_supabase.table("profiles").select("role").eq("id", user_id).single().execute()
         return res.data.get("role") == "admin"
     except Exception as e:
         logging.warning(f"Admin check failed for {user_id}: {e}")
@@ -90,7 +93,7 @@ def send_password_reset(email: str) -> str:
         return "❌ Too many reset attempts. Try again later."
 
     try:
-        supabase.auth.reset_password_email(email)
+        anon_supabase.auth.reset_password_email(email)
         RESET_RATE_LIMIT[email] = (attempts + 1, now)
         return "📧 Password reset email sent."
     except Exception as e:
@@ -99,7 +102,7 @@ def send_password_reset(email: str) -> str:
 
 def recover_user_email(keyword: str) -> list[str]:
     try:
-        res = supabase.table("profiles").select("username, email").ilike("username", f"%{keyword}%").execute()
+        res = service_supabase.table("profiles").select("username, email").ilike("username", f"%{keyword}%").execute()
         return [row["username"] for row in res.data] if res.data else []
     except Exception as e:
         logging.warning(f"Recover email failed for keyword '{keyword}': {e}")
