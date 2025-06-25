@@ -12,6 +12,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_ANON_KEY
 
+# Safety checks for required environment variables
+if not SUPABASE_URL:
+    raise RuntimeError("❌ SUPABASE_URL is missing. Set it in environment variables or .env")
+if not SUPABASE_ANON_KEY:
+    raise RuntimeError("❌ SUPABASE_KEY (anon) is missing. Set it in environment variables or .env")
+if not SUPABASE_SERVICE_ROLE_KEY:
+    raise RuntimeError("❌ SUPABASE_SERVICE_ROLE_KEY is missing. Set it in environment variables or .env")
+
 anon_supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 service_supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
