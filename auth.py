@@ -36,10 +36,7 @@ def register_user(username: str, email: str, password: str) -> str:
     try:
         result = anon_supabase.auth.sign_up({
             "email": email,
-            "password": password,
-            "options": {
-                "data": {"username": username}
-            }
+            "password": password
         })
         user = result.user
 
