@@ -36,8 +36,8 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        # DISABLE email confirmation: set auto-confirm to True
-        result = anon_supabase.auth.sign_up({"email": email, "password": password}, auto_confirm=True)
+        # DISABLE email confirmation: remove auto_confirm param
+        result = anon_supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
         if not user:
             return "❌ Signup failed."
