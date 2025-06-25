@@ -151,7 +151,7 @@ with gr.Blocks() as interface:
                     return "❌ Invalid email format."
                 if len(password) < 6:
                     return "❌ Password must be at least 6 characters."
-                return register_user(email, password)
+                return register_user(username, email, password)
 
             signup_btn = gr.Button("Signup")
             signup_btn.click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
