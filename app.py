@@ -117,6 +117,77 @@ def handle_ask(question, user_id, subscription_info):
     remaining = MAX_GUEST_QUESTIONS - used - 1
     return gr.update(value=answer + f"\n\n📌 You have {remaining}/5 questions remaining as a guest."), gr.update(visible=False), gr.update()
 
+# Patch: Full Gradio interface setup
+with gr.Blocks() as interface:
+    gr.Markdown("""
+    # 🇵🇭 TINA: Tax Information Navigation Assistant
+    """)
+    login_state = gr.State("")
+    sub_info = gr.State("")
+
+    with gr.Tabs() as tabs:
+        with gr.Tab("Login", id=0):
+            login_user = gr.Textbox(label="Username")
+            login_pass = gr.Textbox(label="Password", type="password")
+            login_result = gr.Textbox(label="Login Result")
+
+            def handle_login(u, p):
+                role = authenticate_user(u, p)
+                if not role:
+                    return "❌ Login failed.", "", ""
+                return f"✅ Logged in as {role}", u, f"Expires: {time.strftime('%Y-%m-%d')}"
+
+            login_btn = gr.Button("Login")
+            login_btn.click(handle_login, [login_user, login_pass], [login_result, login_state, sub_info])
+
+        with gr.Tab("Ask TINA", id=1):
+            q = gr.Textbox(label="Ask a Tax Question")
+            a = gr.Textbox(label="Answer")
+            error_box = gr.Textbox(visible=False)
+            q.submit(fn=handle_ask, inputs=[q, login_state, sub_info], outputs=[a, error_box, tabs])
+
+        with gr.Tab("Signup", id=2):
+            signup_user = gr.Textbox(label="Username")
+            signup_email = gr.Textbox(label="Email Address")
+            signup_pass = gr.Textbox(label="Password", type="password")
+            signup_result = gr.Textbox(label="Signup Result")
+
+            def handle_signup(u, e, p):
+                try:
+                    register_user(u, e, p)
+                    return "✅ Signup successful. Please login."
+                except Exception as e:
+                    return f"❌ Signup failed: {e}"
+
+            signup_btn = gr.Button("Signup")
+            signup_btn.click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
+
+        with gr.Tab("Reset Password", id=3):
+            reset_email = gr.Textbox(label="Email")
+            reset_result = gr.Textbox(label="Reset Result")
+            gr.Button("Send Reset Email").click(send_password_reset, [reset_email], reset_result)
+
+        with gr.Tab("Recover Email", id=4):
+            recover_username = gr.Textbox(label="Username")
+            recover_result = gr.Textbox(label="Recovery Result")
+            gr.Button("Send Recovery Email").click(recover_user_email, [recover_username], recover_result)
+
+        with gr.Tab("Admin Upload", id=5):
+            file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png'])
+            upload_result = gr.Textbox(label="Upload Status")
+
+            def handle_upload(file, user):
+                if not is_admin(user):
+                    return "❌ Only admin can upload."
+                if not is_valid_file(file.name):
+                    return "❌ Invalid file type."
+                path, _ = save_file(file)
+                extracted = extract_text_from_file(path)
+                index_document(extracted)
+                store_file_text(file.name, extracted)
+                return f"✅ Uploaded and indexed: {file.name}"
+
+            gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
 def launch():
     return interface
