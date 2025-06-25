@@ -42,7 +42,7 @@ def register_user(username: str, email: str, password: str) -> str:
         return "✅ Signup successful. Please login."
     except Exception as e:
         logging.error(f"Signup error: {e}")
-        return "❌ Signup failed."
+        return f"❌ Signup failed. {e}"
 
 def authenticate_user(email: str, password: str) -> dict | None:
     try:
@@ -50,7 +50,7 @@ def authenticate_user(email: str, password: str) -> dict | None:
         user = result.user
         if not user:
             return None
-        profile = supabase.table("profiles").select("*", count='exact').eq("id", user.id).single().execute().data
+        profile = supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
         return {"id": user.id, "email": email, **profile} if profile else None
     except Exception as e:
         logging.warning(f"Login failed for {email}: {e}")
