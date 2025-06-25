@@ -30,7 +30,7 @@ def register_user(username: str, email: str, password: str) -> str:
         if not user:
             return "❌ Signup failed."
 
-        expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).date()
+        expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).isoformat()
         supabase.table("profiles").insert({
             "id": user.id,
             "username": username,
@@ -60,7 +60,7 @@ def renew_subscription(user_id: str, plan: str) -> str:
     duration = PLAN_DURATIONS.get(plan)
     if not duration:
         return f"❌ Invalid plan: {plan}"
-    expiry = (datetime.utcnow() + timedelta(days=duration)).date()
+    expiry = (datetime.utcnow() + timedelta(days=duration)).isoformat()
     try:
         supabase.table("profiles").update({
             "subscription_level": plan,
