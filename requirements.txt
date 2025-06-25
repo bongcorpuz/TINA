@@ -11,6 +11,7 @@ PyMuPDF==1.23.20
 pdfplumber
 pdfminer.six
 sqlite-utils==3.35
+supabase
 
 # Semantic Search + FAISS + Embeddings
 faiss-cpu==1.7.4
