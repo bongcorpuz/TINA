@@ -1,75 +1,90 @@
 # ------------------ auth.py ------------------
-import bcrypt
+import os
 from datetime import datetime, timedelta
-from database import get_conn
+from dotenv import load_dotenv
+from supabase import create_client, Client
+from collections import defaultdict
 
-RATE_LIMIT = {}
-MAX_ATTEMPTS = 5
-LOCKOUT_DURATION = timedelta(minutes=10)
+load_dotenv()
 
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+PLAN_DURATIONS = {
+    "free": 7,
+    "monthly": 30,
+    "quarterly": 90,
+    "annual": 365
+}
 
-def is_locked_out(user: str) -> bool:
-    record = RATE_LIMIT.get(user)
-    if not record:
-        return False
-    attempts, last_attempt = record
-    if attempts >= MAX_ATTEMPTS:
-        if datetime.now() - last_attempt < LOCKOUT_DURATION:
-            return True
-        RATE_LIMIT[user] = (0, datetime.now())
-    return False
+# Throttling state (in-memory)
+RESET_RATE_LIMIT = defaultdict(lambda: (0, datetime.min))
+MAX_RESET_ATTEMPTS = 3
+RESET_WINDOW = timedelta(minutes=15)
 
-def record_attempt(user: str) -> None:
-    attempts, last_time = RATE_LIMIT.get(user, (0, datetime.now()))
-    if datetime.now() - last_time > LOCKOUT_DURATION:
-        RATE_LIMIT[user] = (1, datetime.now())
-    else:
-        RATE_LIMIT[user] = (attempts + 1, datetime.now())
+def register_user(email: str, password: str) -> str:
+    result = supabase.auth.sign_up({"email": email, "password": password})
+    user = result.user
+    if not user:
+        return "❌ Signup failed."
 
-def authenticate_user(username: str, password: str) -> str | None:
-    if is_locked_out(username):
+    expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).date()
+    supabase.table("profiles").insert({
+        "id": user.id,
+        "username": email,
+        "role": "user",
+        "subscription_level": "free",
+        "subscription_expires": expiry
+    }).execute()
+    return "✅ Signup successful. Please login."
+
+def authenticate_user(email: str, password: str) -> dict | None:
+    try:
+        result = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        user = result.user
+        if not user:
+            return None
+        profile = supabase.table("profiles").select("*", count='exact').eq("id", user.id).single().execute().data
+        return {"id": user.id, "email": email, **profile} if profile else None
+    except Exception:
         return None
-    with get_conn() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT password FROM subscribers WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        if row and verify_password(password, row[0]):
-            RATE_LIMIT[username] = (0, datetime.now())
-            return "admin" if username == "admin" else "user"
-        record_attempt(username)
-        return None
 
-def register_user(username: str, password: str) -> bool:
-    with get_conn() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT username FROM subscribers WHERE username = ?", (username,))
-        if cursor.fetchone():
-            return False
-        hashed = hash_password(password)
-        cursor.execute("INSERT INTO subscribers (username, password) VALUES (?, ?)", (username, hashed))
-        conn.commit()
-        return True
-
-def renew_subscription(user: str, plan: str) -> str:
-    PLAN_DURATIONS = {"monthly": 30, "quarterly": 90, "annual": 365}
+def renew_subscription(user_id: str, plan: str) -> str:
     duration = PLAN_DURATIONS.get(plan)
     if not duration:
-        return f"Invalid plan: {plan}"
-    new_expiry = (datetime.now() + timedelta(days=duration)).strftime("%Y-%m-%d")
-    with get_conn() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE subscribers 
-            SET subscription_level = ?, subscription_expires = ? 
-            WHERE username = ?
-        """, (plan, new_expiry, user))
-        conn.commit()
-    return f"Subscription for {user} renewed to {plan} until {new_expiry}."
+        return f"❌ Invalid plan: {plan}"
+    expiry = (datetime.utcnow() + timedelta(days=duration)).date()
+    supabase.table("profiles").update({
+        "subscription_level": plan,
+        "subscription_expires": expiry
+    }).eq("id", user_id).execute()
+    return f"✅ Subscription updated to {plan} until {expiry}"
 
-def is_admin(username: str) -> bool:
-    return username == "admin"
+def is_admin(user_id: str) -> bool:
+    res = supabase.table("profiles").select("role").eq("id", user_id).single().execute()
+    return res.data.get("role") == "admin"
+
+def send_password_reset(email: str) -> str:
+    now = datetime.utcnow()
+    attempts, last_reset = RESET_RATE_LIMIT[email]
+
+    if now - last_reset > RESET_WINDOW:
+        attempts = 0
+
+    if attempts >= MAX_RESET_ATTEMPTS:
+        return "❌ Too many reset attempts. Try again later."
+
+    try:
+        supabase.auth.reset_password_email(email)
+        RESET_RATE_LIMIT[email] = (attempts + 1, now)
+        return "📧 Password reset email sent."
+    except Exception:
+        return "❌ Failed to send reset email."
+
+def recover_user_email(keyword: str) -> list[str]:
+    try:
+        res = supabase.table("profiles").select("username, email").ilike("username", f"%{keyword}%").execute()
+        return [row["username"] for row in res.data] if res.data else []
+    except Exception:
+        return []
