@@ -67,7 +67,6 @@ def count_guest_queries():
         return c.fetchone()[0]
 
 def handle_ask(question, user_id, subscription_info):
-        # Block if expired user
     if user_id and 'Expires:' in subscription_info:
         try:
             exp_date = subscription_info.split('Expires: ')[-1].strip()
@@ -123,42 +122,7 @@ with gr.Blocks() as interface:
     subscription_status = gr.State("")
 
     with gr.Tabs() as tabs:
-        def should_disable_renew(sub_info):
-            try:
-                if 'Expires:' in sub_info:
-                    from datetime import datetime, timedelta
-                    exp_date = sub_info.split('Expires:')[-1].strip()
-                    expiry = datetime.strptime(exp_date, "%Y-%m-%d")
-                    if expiry - datetime.now() > timedelta(days=60):
-                        return True
-            except Exception as e:
-                logging.warning(f"Could not parse subscription info: {e}")
-            return False
-
-        renew_disabled = should_disable_renew(subscription_status.value)
-        with gr.Tab("Renew Subscription", id=6, visible=not renew_disabled):
-            renew_result = gr.Textbox(label="Renewal Result")
-
-            def renew_plan_wrapper(plan):
-                from auth import renew_subscription, authenticate_user
-                def inner(user_id):
-                    if not user_id:
-                        return "❌ Please login first.", ""
-                    msg = renew_subscription(user_id, plan)
-                    refreshed = authenticate_user(user_id, None)
-                    if refreshed:
-                        sub_info = f"📅 Plan: {refreshed['subscription_level']} | Expires: {refreshed['subscription_expires']}"
-                    else:
-                        sub_info = ""
-                    return msg, sub_info
-                return inner
-
-            gr.Row([
-                gr.Button("Monthly Plan (₱)").click(fn=renew_plan_wrapper("monthly"), inputs=[login_state], outputs=[renew_result, subscription_status]),
-                gr.Button("Quarterly Plan (₱₱)").click(fn=renew_plan_wrapper("quarterly"), inputs=[login_state], outputs=renew_result),
-                gr.Button("Annual Plan (₱₱₱)").click(fn=renew_plan_wrapper("annual"), inputs=[login_state], outputs=renew_result)
-            ])
-                    with gr.Tab("Login", id=0):
+        with gr.Tab("Login", id=0):
             login_email = gr.Textbox(label="Email")
             login_pass = gr.Textbox(label="Password", type="password")
             login_result = gr.Textbox(label="Login Result")
@@ -168,8 +132,8 @@ with gr.Blocks() as interface:
             def handle_login(e, p):
                 user = authenticate_user(e, p)
                 if not user:
-                    return "❌ Login failed.", "", ""
-                sub_info = f"📅 Plan: {user['subscription_level']} | Expires: {user['subscription_expires']}"
+                    return "❌ Login failed.", "", "", ""
+                sub_info = f"🗓 Plan: {user['subscription_level']} | Expires: {user['subscription_expires']}"
                 from datetime import datetime
                 try:
                     days_left = (datetime.strptime(user['subscription_expires'], "%Y-%m-%d") - datetime.utcnow()).days
@@ -227,6 +191,42 @@ with gr.Blocks() as interface:
                 return f"✅ Uploaded and indexed: {file.name}"
 
             gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
+
+        def should_disable_renew(sub_info):
+            try:
+                if 'Expires:' in sub_info:
+                    from datetime import datetime, timedelta
+                    exp_date = sub_info.split('Expires:')[-1].strip()
+                    expiry = datetime.strptime(exp_date, "%Y-%m-%d")
+                    if expiry - datetime.now() > timedelta(days=60):
+                        return True
+            except Exception as e:
+                logging.warning(f"Could not parse subscription info: {e}")
+            return False
+
+        renew_disabled = should_disable_renew(subscription_status.value)
+        with gr.Tab("Renew Subscription", id=6, visible=not renew_disabled):
+            renew_result = gr.Textbox(label="Renewal Result")
+
+            def renew_plan_wrapper(plan):
+                from auth import renew_subscription, authenticate_user
+                def inner(user_id):
+                    if not user_id:
+                        return "❌ Please login first.", ""
+                    msg = renew_subscription(user_id, plan)
+                    refreshed = authenticate_user(user_id, None)
+                    if refreshed:
+                        sub_info = f"🗓 Plan: {refreshed['subscription_level']} | Expires: {refreshed['subscription_expires']}"
+                    else:
+                        sub_info = ""
+                    return msg, sub_info
+                return inner
+
+            gr.Row([
+                gr.Button("Monthly Plan (₱)").click(fn=renew_plan_wrapper("monthly"), inputs=[login_state], outputs=[renew_result, subscription_status]),
+                gr.Button("Quarterly Plan (₱₱)").click(fn=renew_plan_wrapper("quarterly"), inputs=[login_state], outputs=[renew_result, subscription_status]),
+                gr.Button("Annual Plan (₱₱₱)").click(fn=renew_plan_wrapper("annual"), inputs=[login_state], outputs=[renew_result, subscription_status])
+            ])
 
     gr.HTML("""
     <hr>
