@@ -45,18 +45,19 @@ def register_user(username: str, email: str, password: str) -> str:
         logging.info(f"Registering user with ID: {user_id}")
 
         expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).isoformat()
-        insert_response = service_supabase.table("profiles").insert({
-            "id": user_id,
-            "username": username,
-            "email": email,
-            "role": "user",
-            "subscription_level": "free",
-            "subscription_expires": expiry
-        }).execute()
 
-        if insert_response.error:
-            logging.error(f"Profile insert error: {insert_response.error}")
-            return f"❌ Signup failed. {insert_response.error}"
+        try:
+            service_supabase.table("profiles").insert({
+                "id": user_id,
+                "username": username,
+                "email": email,
+                "role": "user",
+                "subscription_level": "free",
+                "subscription_expires": expiry
+            }).execute()
+        except Exception as e:
+            logging.error(f"Profile insert error: {e}")
+            return f"❌ Signup failed. {e}"
 
         return "✅ Signup successful. Please login."
     except Exception as e:
