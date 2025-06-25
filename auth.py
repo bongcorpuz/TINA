@@ -67,8 +67,10 @@ def register_user(username: str, email: str, password: str) -> str:
 def authenticate_user(email: str, password: str) -> dict | None:
     try:
         result = anon_supabase.auth.sign_in_with_password({"email": email, "password": password})
+        logging.info(f"Sign-in response: {result}")
         user = result.user
         if not user:
+            logging.warning(f"Sign-in failed: No user returned for {email}")
             return None
         profile = service_supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
         return {"id": user.id, "email": email, **profile} if profile else None
