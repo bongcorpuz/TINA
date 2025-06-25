@@ -1,3 +1,4 @@
+# ------------------ app.py ------------------
 import gradio as gr
 import time
 import os
@@ -13,7 +14,7 @@ from file_utils import (
     index_document,
     load_or_create_faiss_index
 )
-from auth import authenticate_user, register_user, is_admin
+from auth import authenticate_user, register_user, is_admin, send_password_reset, recover_user_email
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
 # For openai==0.27.8 compatibility
@@ -65,7 +66,16 @@ def count_guest_queries():
         c.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest'")
         return c.fetchone()[0]
 
-def handle_ask(question):
+def handle_ask(question, user_id, subscription_info):
+        # Block if expired user
+    if user_id and 'Expires:' in subscription_info:
+        try:
+            exp_date = subscription_info.split('Expires: ')[-1].strip()
+            if exp_date and exp_date < time.strftime("%Y-%m-%d"):
+                return gr.update(value="❌ Your subscription has expired. Please renew to continue."), gr.update(visible=False), gr.update()
+        except Exception as e:
+            logging.warning(f"Subscription parse failed: {e}")
+
     if not is_tax_related(question):
         return gr.update(value="❌ TINA only answers questions related to Philippine taxation. Please refine your question."), gr.update(visible=False), gr.update()
 
@@ -110,51 +120,98 @@ with gr.Blocks() as interface:
     # 🇵🇭 TINA: Tax Information Navigation Assistant
     """)
     login_state = gr.State("")
+    subscription_status = gr.State("")
 
     with gr.Tabs() as tabs:
-        with gr.Tab("Login", id=0):
-            login_user = gr.Textbox(label="Username")
+        def should_disable_renew(sub_info):
+            try:
+                if 'Expires:' in sub_info:
+                    from datetime import datetime, timedelta
+                    exp_date = sub_info.split('Expires:')[-1].strip()
+                    expiry = datetime.strptime(exp_date, "%Y-%m-%d")
+                    if expiry - datetime.now() > timedelta(days=60):
+                        return True
+            except Exception as e:
+                logging.warning(f"Could not parse subscription info: {e}")
+            return False
+
+        renew_disabled = should_disable_renew(subscription_status.value)
+        with gr.Tab("Renew Subscription", id=6, visible=not renew_disabled):
+            renew_result = gr.Textbox(label="Renewal Result")
+
+            def renew_plan_wrapper(plan):
+                from auth import renew_subscription, authenticate_user
+                def inner(user_id):
+                    if not user_id:
+                        return "❌ Please login first.", ""
+                    msg = renew_subscription(user_id, plan)
+                    refreshed = authenticate_user(user_id, None)
+                    if refreshed:
+                        sub_info = f"📅 Plan: {refreshed['subscription_level']} | Expires: {refreshed['subscription_expires']}"
+                    else:
+                        sub_info = ""
+                    return msg, sub_info
+                return inner
+
+            gr.Row([
+                gr.Button("Monthly Plan (₱)").click(fn=renew_plan_wrapper("monthly"), inputs=[login_state], outputs=[renew_result, subscription_status]),
+                gr.Button("Quarterly Plan (₱₱)").click(fn=renew_plan_wrapper("quarterly"), inputs=[login_state], outputs=renew_result),
+                gr.Button("Annual Plan (₱₱₱)").click(fn=renew_plan_wrapper("annual"), inputs=[login_state], outputs=renew_result)
+            ])
+                    with gr.Tab("Login", id=0):
+            login_email = gr.Textbox(label="Email")
             login_pass = gr.Textbox(label="Password", type="password")
             login_result = gr.Textbox(label="Login Result")
+            sub_status_box = gr.Textbox(label="Subscription Info", interactive=False)
+            badge_box = gr.Textbox(label="⏳ Days Left", interactive=False, info="Renew option hidden: active plan")
 
-            def handle_login(u, p):
-                role = authenticate_user(u, p)
-                if not role:
-                    return "❌ Login failed.", ""
-                return f"✅ Logged in as {role}", u
+            def handle_login(e, p):
+                user = authenticate_user(e, p)
+                if not user:
+                    return "❌ Login failed.", "", ""
+                sub_info = f"📅 Plan: {user['subscription_level']} | Expires: {user['subscription_expires']}"
+                from datetime import datetime
+                try:
+                    days_left = (datetime.strptime(user['subscription_expires'], "%Y-%m-%d") - datetime.utcnow()).days
+                    badge = f"⏳ {days_left} days left"
+                except:
+                    badge = ""
+                return f"✅ Logged in as {user['role']}", user["id"], sub_info, badge
 
-            login_btn = gr.Button("Login")
-            login_btn.click(handle_login, [login_user, login_pass], [login_result, login_state])
-
-            logout_btn = gr.Button("Logout")
-            def handle_logout():
-                return "Logged out.", ""
-            logout_btn.click(fn=handle_logout, inputs=None, outputs=[login_result, login_state])
+            gr.Button("Login").click(handle_login, [login_email, login_pass], [login_result, login_state, sub_status_box, badge_box])
+            gr.Button("Logout").click(fn=lambda: ("Logged out.", "", ""), inputs=None, outputs=[login_result, login_state, sub_status_box])
 
         with gr.Tab("Ask TINA", id=1):
             q = gr.Textbox(label="Ask a Tax Question")
             a = gr.Textbox(label="Answer")
             error_box = gr.Textbox(visible=False)
-            q.submit(fn=handle_ask, inputs=q, outputs=[a, error_box, tabs])
+            q.submit(fn=handle_ask, inputs=[q, login_state, subscription_status], outputs=[a, error_box, tabs])
 
         with gr.Tab("Signup", id=2):
-            signup_user = gr.Textbox(label="Username")
             signup_email = gr.Textbox(label="Email Address")
             signup_pass = gr.Textbox(label="Password", type="password")
             signup_result = gr.Textbox(label="Signup Result")
 
-            def handle_signup(u, e, p):
-                try:
-                    with open("users.txt", "a", encoding="utf-8") as f:
-                        f.write(f"{u},{e},{p}\n")
-                    return "✅ Signup successful. Please login."
-                except Exception as e:
-                    return f"❌ Signup failed: {e}"
+            def handle_signup(e, p):
+                return register_user(e, p)
 
-            signup_btn = gr.Button("Signup")
-            signup_btn.click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
+            gr.Button("Signup").click(handle_signup, [signup_email, signup_pass], signup_result)
 
-        with gr.Tab("Admin Upload", id=3):
+        with gr.Tab("Forgot Password", id=3):
+            reset_email = gr.Textbox(label="Email")
+            reset_result = gr.Textbox(label="Reset Result")
+            gr.Button("Send Reset Email").click(send_password_reset, [reset_email], [reset_result])
+
+        with gr.Tab("Recover Username", id=4):
+            recover_key = gr.Textbox(label="Keyword")
+            recover_result = gr.Textbox(label="Matched Usernames")
+
+            def handle_recover(k):
+                return "\n".join(recover_user_email(k))
+
+            gr.Button("Search").click(handle_recover, [recover_key], [recover_result])
+
+        with gr.Tab("Admin Upload", id=5):
             file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
             upload_result = gr.Textbox(label="Upload Status")
 
@@ -169,8 +226,7 @@ with gr.Blocks() as interface:
                 store_file_text(file.name, extracted)
                 return f"✅ Uploaded and indexed: {file.name}"
 
-            upload_btn = gr.Button("Upload")
-            upload_btn.click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
+            gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
     gr.HTML("""
     <hr>
