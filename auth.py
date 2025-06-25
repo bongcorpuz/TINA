@@ -35,7 +35,6 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        # Email confirmation required: do not pass auto_confirm param
         result = anon_supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
         if not user:
@@ -62,7 +61,7 @@ def authenticate_user(email: str, password: str) -> dict | None:
         if not user:
             return None
         if not user.email_confirmed_at:
-            return {"error": "Email not confirmed"}
+            return {"error": "❌ Email not confirmed. Please confirm your email to log in."}
         profile = service_supabase.table("profiles").select("*").eq("id", user.id).single().execute().data
         return {"id": user.id, "email": email, "email_confirmed": True, **profile} if profile else None
     except Exception as e:
