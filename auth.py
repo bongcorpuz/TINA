@@ -1,4 +1,3 @@
-# ------------------ auth.py ------------------
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -12,7 +11,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_ANON_KEY
 
-# Safety checks for required environment variables
 if not SUPABASE_URL:
     raise RuntimeError("❌ SUPABASE_URL is missing. Set it in environment variables or .env")
 if not SUPABASE_ANON_KEY:
@@ -36,21 +34,30 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        # DISABLE email confirmation: remove auto_confirm param
         result = anon_supabase.auth.sign_up({"email": email, "password": password})
         user = result.user
-        if not user:
-            return "❌ Signup failed."
+
+        if not user or not getattr(user, "id", None):
+            logging.error(f"Signup error: Missing user or user ID. Full result: {result}")
+            return "❌ Signup failed. Please try again later."
+
+        user_id = user.id
+        logging.info(f"Registering user with ID: {user_id}")
 
         expiry = (datetime.utcnow() + timedelta(days=PLAN_DURATIONS["free"])).isoformat()
-        service_supabase.table("profiles").insert({
-            "id": user.id,
+        insert_response = service_supabase.table("profiles").insert({
+            "id": user_id,
             "username": username,
             "email": email,
             "role": "user",
             "subscription_level": "free",
             "subscription_expires": expiry
         }).execute()
+
+        if insert_response.error:
+            logging.error(f"Profile insert error: {insert_response.error}")
+            return f"❌ Signup failed. {insert_response.error}"
+
         return "✅ Signup successful. Please login."
     except Exception as e:
         logging.error(f"Signup error: {e}")
