@@ -74,7 +74,8 @@ def handle_ask(question, user):
         used = 0
 
     results, source = answer_query_with_knowledge(question)
-    answer = "\n\n---\n\n".join(results)
+    unique_results = list(dict.fromkeys(results))
+    answer = "\n\n---\n\n".join(unique_results)
 
     if source == "chatgpt":
         learn_from_text(answer)
