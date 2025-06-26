@@ -29,10 +29,11 @@ def save_file(file) -> tuple[str, str]:
     filepath = os.path.join("knowledge_files", file.name)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     try:
-        shutil.move(file.path, filepath)  # safe for Gradio NamedString
+        with open(filepath, "wb") as f:
+            f.write(file.read())
         return filepath, ""
     except Exception as e:
-        logging.error(f"Failed to move uploaded file: {e}")
+        logging.error(f"Failed to save uploaded file: {e}")
         return "", f"Error saving file: {e}"
 
 def extract_text_from_file(path: str) -> str:
