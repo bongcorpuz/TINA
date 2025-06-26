@@ -109,3 +109,4 @@ def test_save_file_valid(tmp_path):
     assert os.path.exists(path)
     assert err == ""
     os.remove(path)
+    os.rmdir(os.path.dirname(path))
