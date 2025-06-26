@@ -35,7 +35,6 @@ CURRENT_VERSION = "v1.0.0"
 index = None
 knowledge_texts = []
 
-
 def is_valid_file(file_path: str) -> bool:
     ext = Path(file_path).suffix.lower()
     mime, _ = mimetypes.guess_type(file_path)
@@ -53,7 +52,6 @@ def is_valid_file(file_path: str) -> bool:
         return False
 
     return True
-
 
 def extract_text_from_file(file_path: str) -> str:
     ext = Path(file_path).suffix.lower()
@@ -85,10 +83,8 @@ def extract_text_from_file(file_path: str) -> str:
 
     return text.strip()
 
-
 def sanitize_filename(filename: str) -> str:
     return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
-
 
 def save_file(file) -> tuple[str, str, str]:
     filename = sanitize_filename(getattr(file, 'name', 'uploaded_file'))
@@ -129,7 +125,6 @@ def save_file(file) -> tuple[str, str, str]:
         logger.error(f"Failed to save uploaded file: {e}")
         return "", filename, f"Error saving file: {e}"
 
-
 def index_document(text: str):
     global knowledge_texts, index
     if not text:
@@ -140,7 +135,6 @@ def index_document(text: str):
         index = faiss.IndexFlatL2(len(embedding[0]))
     index.add(np.array(embedding, dtype=np.float32))
     persist_faiss_index()
-
 
 def learn_from_text(content: str, label: str = "dynamic") -> None:
     if not content.strip():
@@ -157,13 +151,18 @@ def learn_from_text(content: str, label: str = "dynamic") -> None:
     except Exception as e:
         logger.error(f"Failed to learn from text: {e}")
 
+def semantic_search(query: str, top_k: int = 3) -> list[str]:
+    if index is None:
+        raise RuntimeError("FAISS index is not initialized.")
+    query_vec = model.encode([query], convert_to_tensor=False)
+    scores, indices = index.search(np.array(query_vec, dtype=np.float32), top_k)
+    return [knowledge_texts[i] for i in indices[0] if i < len(knowledge_texts)]
 
 def persist_faiss_index():
     if index:
         faiss.write_index(index, INDEX_FILE)
         with open(VERSION_FILE, "w") as f:
             f.write(CURRENT_VERSION)
-
 
 def load_or_create_faiss_index(skip_versioning: bool = False):
     global index, knowledge_texts
@@ -180,7 +179,6 @@ def load_or_create_faiss_index(skip_versioning: bool = False):
             rebuild_index()
     else:
         rebuild_index()
-
 
 def rebuild_index():
     global index, knowledge_texts
