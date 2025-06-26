@@ -162,13 +162,13 @@ with gr.Blocks() as interface:
                 outputs=recover_result
             )
 
-        with gr.Tab("Admin Upload", id=5):
+        with gr.Tab("Help TINA Learn", id=5):
             file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
             upload_result = gr.Textbox(label="Upload Status")
 
             def handle_upload(file, user):
-                if not is_admin(user):
-                    return "❌ Only admin can upload."
+                if user == "guest":
+                    return "❌ Only logged in users can upload."
                 if not is_valid_file(file.name):
                     return "❌ Invalid file type."
                 path, _ = save_file(file)
