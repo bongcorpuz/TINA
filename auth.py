@@ -34,8 +34,8 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
-        existing = anon_supabase.auth.admin.list_users(email=email)
-        if existing and existing.users:
+        existing = service_supabase.table("profiles").select("email").eq("email", email).execute()
+        if existing.data:
             return "❌ Email already registered. Try logging in or use password reset."
 
         result = anon_supabase.auth.sign_up({
