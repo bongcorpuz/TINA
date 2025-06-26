@@ -65,5 +65,99 @@ def handle_ask(question, user):
 
     answer = "\n\n---\n\n".join(results)
     log_query(user, question, source, answer)
-    remaining = MAX_GUEST_QUESTIONS - used - 1 if user == "guest" else "∞"
+    remaining = MAX_GUEST_QUESTIONS - used - 1 if user == 'guest' else "∞"
     return gr.update(value=answer + f"\n\n📌 {'Guest questions left: ' + str(remaining) if user == 'guest' else 'Logged in user'}"), gr.update(visible=False), gr.update()
+
+with gr.Blocks() as interface:
+    gr.Markdown("# 🇵🇭 TINA: Tax Information Navigation Assistant")
+    login_state = gr.State("guest")
+
+    with gr.Tabs() as tabs:
+        with gr.Tab("Login", id=0):
+            login_user = gr.Textbox(label="Email")
+            login_pass = gr.Textbox(label="Password", type="password")
+            login_result = gr.Textbox(label="Login Result")
+
+            def handle_login(u, p):
+                profile = authenticate_user(u, p)
+                if not profile:
+                    return "❌ Login failed.", "guest"
+                if "error" in profile:
+                    return profile["error"], "guest"
+                return f"✅ Logged in as {profile['role']}", profile["email"]
+
+            gr.Button("Login").click(handle_login, [login_user, login_pass], [login_result, login_state])
+            gr.Button("Logout").click(fn=lambda: ("Logged out.", "guest"), inputs=None, outputs=[login_result, login_state])
+
+        with gr.Tab("Ask TINA", id=1):
+            q = gr.Textbox(label="Ask a Tax Question")
+            a = gr.Textbox(label="Answer")
+            error_box = gr.Textbox(visible=False)
+            q.submit(fn=lambda question, uid: handle_ask(question, uid), inputs=[q, login_state], outputs=[a, error_box, tabs])
+
+        with gr.Tab("Signup", id=2):
+            signup_user = gr.Textbox(label="Username")
+            signup_email = gr.Textbox(label="Email Address")
+            signup_pass = gr.Textbox(label="Password", type="password")
+            signup_result = gr.Textbox(label="Signup Result")
+
+            def handle_signup(username, email, password):
+                if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
+                    return "❌ Invalid email format."
+                if len(password) < 6:
+                    return "❌ Password must be at least 6 characters."
+                return register_user(username, email, password)
+
+            gr.Button("Signup").click(handle_signup, [signup_user, signup_email, signup_pass], signup_result)
+
+        with gr.Tab("Reset Password", id=3):
+            gr.Markdown("📧 Enter your email to reset password.")
+            reset_email = gr.Textbox(label="Email")
+            reset_result = gr.Textbox(label="Reset Status")
+            gr.Button("Send Reset Email").click(send_password_reset, inputs=reset_email, outputs=reset_result)
+
+        with gr.Tab("Recover Email", id=4):
+            gr.Markdown("🔎 Enter your username or part of it to recover email.")
+            recover_keyword = gr.Textbox(label="Keyword")
+            recover_result = gr.Textbox(label="Possible Matches")
+            gr.Button("Search Email").click(
+                fn=lambda k: "\n".join(recover_user_email(k)),
+                inputs=recover_keyword,
+                outputs=recover_result
+            )
+
+        with gr.Tab("Help TINA Learn", id=5):
+            file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
+            upload_result = gr.Textbox(label="Upload Status")
+
+            def handle_upload(file, user):
+                try:
+                    if user == "guest" or not user:
+                        return "❌ Only logged in users can upload."
+                    if not is_valid_file(file.name):
+                        return "❌ Invalid file type."
+                    path, _ = save_file(file)
+                    text = extract_text_from_file(path)
+                    index_document(text)
+                    store_file_text(file.name, text)
+                    return f"✅ Uploaded and indexed: {file.name} by user: {user}"
+                except Exception as e:
+                    logging.error(f"Upload failed: {e}")
+                    return "❌ Error"
+
+            gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
+
+    gr.HTML("""
+    <hr>
+    <div style='text-align:center; font-size: 14px; color: #555;'>
+        <img src='https://www.bongcorpuz.com/favicon.ico' height='20' style='vertical-align:middle;margin-right:8px;'>
+        <a href='https://www.bongcorpuz.com' target='_blank'><strong>powered by: Bong Corpuz & Co. CPAs</strong></a>
+    </div>
+    """)
+
+
+def launch():
+    return interface
+
+if __name__ == "__main__":
+    launch().launch()
