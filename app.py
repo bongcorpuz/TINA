@@ -147,7 +147,7 @@ with gr.Blocks() as interface:
 
                     # Auto-save .txt version
                     base, _ = os.path.splitext(path)
-                    txt_path = f"{base}.txt"
+                    txt_path = os.path.join("knowledge_files", f"{os.path.basename(base)}.txt")
                     with open(txt_path, "w", encoding="utf-8") as f:
                         f.write(text)
 
