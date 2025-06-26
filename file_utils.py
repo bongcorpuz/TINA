@@ -8,6 +8,7 @@ import numpy as np
 import faiss
 import logging
 import shutil
+import hashlib
 
 from sentence_transformers import SentenceTransformer
 
@@ -67,6 +68,21 @@ def index_document(text: str):
         index = faiss.IndexFlatL2(len(embedding[0]))
     index.add(np.array(embedding, dtype=np.float32))
     persist_faiss_index()
+
+def learn_from_text(content: str, label: str = "dynamic") -> None:
+    if not content.strip():
+        return
+    try:
+        filename = f"{label}_{hashlib.sha256(content.encode()).hexdigest()}.txt"
+        folder = os.path.join("knowledge_files", "dynamic")
+        os.makedirs(folder, exist_ok=True)
+        filepath = os.path.join(folder, filename)
+        if not os.path.exists(filepath):
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+        index_document(content)
+    except Exception as e:
+        logging.error(f"Failed to learn from text: {e}")
 
 def semantic_search(query: str, top_k: int = 3) -> list[str]:
     if index is None:
