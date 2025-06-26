@@ -12,9 +12,10 @@ from file_utils import (
     is_valid_file,
     extract_text_from_file,
     index_document,
-    load_or_create_faiss_index
+    load_or_create_faiss_index,
+    learn_from_text
 )
-from ask_tina import answer_query_with_knowledge  # ✅ Works now, no circular import
+from ask_tina import answer_query_with_knowledge
 from auth import authenticate_user, register_user, is_admin, send_password_reset, recover_user_email
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
@@ -62,8 +63,11 @@ def handle_ask(question, user):
         used = 0
 
     results, source = answer_query_with_knowledge(question)
-
     answer = "\n\n---\n\n".join(results)
+
+    if source == "chatgpt":
+        learn_from_text(answer)
+
     log_query(user, question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1 if user == 'guest' else "∞"
     return gr.update(value=answer + f"\n\n📌 {'Guest questions left: ' + str(remaining) if user == 'guest' else 'Logged in user'}"), gr.update(visible=False), gr.update()
@@ -154,7 +158,6 @@ with gr.Blocks() as interface:
         <a href='https://www.bongcorpuz.com' target='_blank'><strong>powered by: Bong Corpuz & Co. CPAs</strong></a>
     </div>
     """)
-
 
 def launch():
     return interface
