@@ -27,23 +27,25 @@ def is_valid_file(filename: str) -> bool:
     return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
 
 def save_file(file) -> tuple[str, str]:
-    filepath = os.path.join("knowledge_files", file.name)
+    filename = getattr(file, 'name', 'uploaded_file')
+    filepath = os.path.join("knowledge_files", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     try:
         if hasattr(file, 'file') and hasattr(file.file, 'read'):
             file.file.seek(0)
             with open(filepath, "wb") as f:
                 shutil.copyfileobj(file.file, f)
-        elif hasattr(file, 'path'):
-            shutil.move(file.path, filepath)
-        elif hasattr(file, 'read'):  # Gradio NamedString fallback
+        elif hasattr(file, 'read'):
+            file.seek(0)
             with open(filepath, "wb") as f:
                 f.write(file.read())
+        elif hasattr(file, 'path') and os.path.exists(file.path):
+            shutil.copy(file.path, filepath)
         else:
-            raise ValueError("Unsupported file object type")
+            raise ValueError(f"Unsupported file object type: {type(file)}")
         return filepath, ""
     except Exception as e:
-        logging.error(f"Failed to move uploaded file: {e}")
+        logging.error(f"Failed to save uploaded file: {e}")
         return "", f"Error saving file: {e}"
 
 def extract_text_from_file(path: str) -> str:
