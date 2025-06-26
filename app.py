@@ -1,12 +1,20 @@
-import gradio as gr
-import time
 import os
+import fitz
+import pdfplumber
+import pytesseract
+from PIL import Image
+from docx import Document
+import numpy as np
+import faiss
 import logging
+import shutil
 import hashlib
-import re
-from functools import lru_cache
+import gradio as gr
 import openai
 from dotenv import load_dotenv
+import re
+
+from sentence_transformers import SentenceTransformer
 from file_utils import (
     save_file,
     is_valid_file,
@@ -33,6 +41,9 @@ load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
+
+EMBED_MODEL_PATH = os.getenv("EMBED_MODEL_PATH", "sentence-transformers/all-MiniLM-L6-v2")
+model = SentenceTransformer(EMBED_MODEL_PATH)
 
 def is_tax_related(question):
     keyword_file = "tax_keywords.txt"
@@ -71,6 +82,27 @@ def handle_ask(question, user):
     log_query(user, question, source, answer)
     remaining = MAX_GUEST_QUESTIONS - used - 1 if user == 'guest' else "∞"
     return gr.update(value=answer + f"\n\n📌 {'Guest questions left: ' + str(remaining) if user == 'guest' else 'Logged in user'}"), gr.update(visible=False), gr.update()
+
+def handle_upload(file, user):
+    try:
+        if user == "guest" or not user:
+            return "❌ Only logged in users can upload."
+        if not is_valid_file(file.name):
+            return "❌ Invalid file type."
+
+        path, err = save_file(file)
+        if not path:
+            return err
+
+        text = extract_text_from_file(path)
+        index_document(text)
+        learn_from_text(text)
+        store_file_text(file.name, text)
+
+        return f"✅ Uploaded and indexed: {path} by user: {user}"
+    except Exception as e:
+        logging.error(f"Upload failed: {e}")
+        return "❌ Error"
 
 with gr.Blocks() as interface:
     gr.Markdown("# 🇵🇭 TINA: Tax Information Navigation Assistant")
@@ -131,31 +163,8 @@ with gr.Blocks() as interface:
             )
 
         with gr.Tab("Help TINA Learn", id=5):
-            file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx'])
+            file_upload = gr.File(label="Upload File", file_types=['.pdf', '.txt', '.jpg', '.png', '.docx', '.doc', '.odt', '.rtf'])
             upload_result = gr.Textbox(label="Upload Status")
-
-            def handle_upload(file, user):
-                try:
-                    if user == "guest" or not user:
-                        return "❌ Only logged in users can upload."
-                    if not is_valid_file(file.name):
-                        return "❌ Invalid file type."
-                    path, _ = save_file(file)
-                    text = extract_text_from_file(path)
-                    index_document(text)
-                    store_file_text(file.name, text)
-
-                    # Auto-save .txt version
-                    base, _ = os.path.splitext(path)
-                    txt_path = os.path.join("knowledge_files", f"{os.path.basename(base)}.txt")
-                    with open(txt_path, "w", encoding="utf-8") as f:
-                        f.write(text)
-
-                    return f"✅ Uploaded and indexed: {file.name} by user: {user}"
-                except Exception as e:
-                    logging.error(f"Upload failed: {e}")
-                    return "❌ Error"
-
             gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
     gr.HTML("""
