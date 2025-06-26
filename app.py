@@ -45,6 +45,9 @@ MAX_GUEST_QUESTIONS = 5
 EMBED_MODEL_PATH = os.getenv("EMBED_MODEL_PATH", "sentence-transformers/all-MiniLM-L6-v2")
 model = SentenceTransformer(EMBED_MODEL_PATH)
 
+FAISS_THRESHOLD = 0.45
+
+
 def is_tax_related(question):
     keyword_file = "tax_keywords.txt"
     keywords = []
@@ -62,6 +65,17 @@ def count_guest_queries():
         c.execute("SELECT COUNT(*) FROM logs WHERE username = 'guest'")
         return c.fetchone()[0]
 
+def score_threshold_fallback(question):
+    try:
+        query_vec = model.encode([question], convert_to_tensor=False)
+        scores, indices = index.search(np.array(query_vec, dtype=np.float32), 3)
+        if scores[0][0] > FAISS_THRESHOLD:
+            return [], "chatgpt"
+        return [knowledge_texts[i] for i in indices[0] if i < len(knowledge_texts)], "faiss"
+    except Exception as e:
+        logging.warning(f"Semantic search failed: {e}")
+        return [], "chatgpt"
+
 def handle_ask(question, user):
     if not is_tax_related(question):
         return gr.update(value="❌ TINA only answers questions related to Philippine taxation."), gr.update(visible=False), gr.update()
@@ -73,7 +87,20 @@ def handle_ask(question, user):
     else:
         used = 0
 
-    results, source = answer_query_with_knowledge(question)
+    results, source = score_threshold_fallback(question)
+
+    if source == "chatgpt":
+        import openai
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": question}]
+            )
+            results = [completion.choices[0].message.content.strip()]
+        except Exception as e:
+            logging.error(f"OpenAI call failed: {e}")
+            return gr.update(value="❌ Failed to get answer from AI."), gr.update(visible=False), gr.update()
+
     unique_results = list(dict.fromkeys(results))
     answer = "\n\n---\n\n".join(unique_results)
 
