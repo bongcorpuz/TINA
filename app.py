@@ -175,7 +175,7 @@ with gr.Blocks() as interface:
                 text = extract_text_from_file(path)
                 index_document(text)
                 store_file_text(file.name, text)
-                return f"✅ Uploaded and indexed: {file.name}"
+                return f"✅ Uploaded and indexed: {file.name} by user: {user}"
 
             gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
