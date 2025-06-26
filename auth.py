@@ -129,7 +129,7 @@ def send_password_reset(email: str) -> str:
 def recover_user_email(keyword: str) -> list[str]:
     try:
         res = service_supabase.table("profiles").select("username, email").ilike("username", f"%{keyword}%").execute()
-        return [row["username"] for row in res.data] if res.data else []
+        return [f"{row['username']} <{row['email']}>" for row in res.data] if res.data else []
     except Exception as e:
         logging.warning(f"Recover email failed for keyword '{keyword}': {e}")
         return []
