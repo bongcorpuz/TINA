@@ -1,8 +1,7 @@
-#---test_file_utils.py---
 import os
 import tempfile
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import docx
 from file_utils import extract_text_from_file, save_file, is_valid_file
 
@@ -40,6 +39,43 @@ def test_extract_text_from_jpg():
     assert "Text" in text
     os.remove(path)
 
+def test_ocr_image_to_text():
+    path = create_temp_file(".png")
+    img = Image.new("RGB", (300, 150), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((20, 60), "TINA OCR", fill="black")
+    img.save(path)
+    text = extract_text_from_file(path)
+    assert "TINA" in text
+    os.remove(path)
+
+def test_ocr_noisy_image():
+    path = create_temp_file(".png")
+    img = Image.new("RGB", (300, 150), color="white")
+    draw = ImageDraw.Draw(img)
+    for x in range(0, 300, 10):
+        for y in range(0, 150, 10):
+            draw.rectangle([x, y, x+2, y+2], fill="gray")
+    draw.text((50, 60), "TINA", fill="black")
+    img.save(path)
+    text = extract_text_from_file(path)
+    assert "TINA" in text.upper()
+    os.remove(path)
+
+def test_ocr_rotated_text():
+    path = create_temp_file(".png")
+    img = Image.new("RGB", (300, 150), color="white")
+    draw = ImageDraw.Draw(img)
+    text_img = Image.new("RGB", (300, 150), color="white")
+    draw_text = ImageDraw.Draw(text_img)
+    draw_text.text((50, 50), "TINA", fill="black")
+    rotated = text_img.rotate(45, expand=1)
+    img.paste(rotated, (0, 0))
+    img.save(path)
+    text = extract_text_from_file(path)
+    assert "TINA" in text.upper()
+    os.remove(path)
+
 def test_extract_text_from_docx():
     path = create_temp_file(".docx")
     doc = docx.Document()
@@ -53,6 +89,14 @@ def test_is_valid_file_accepts_allowed():
     for ext in [".txt", ".pdf", ".jpg", ".docx"]:
         file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
         assert is_valid_file(file.name)
+        file.close()
+        os.remove(file.name)
+
+def test_is_valid_file_rejects_disallowed():
+    disallowed = [".exe", ".bat", ".zip", ".md", ".csv"]
+    for ext in disallowed:
+        file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+        assert not is_valid_file(file.name)
         file.close()
         os.remove(file.name)
 
