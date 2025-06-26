@@ -34,6 +34,11 @@ RESET_WINDOW = timedelta(minutes=15)
 
 def register_user(username: str, email: str, password: str) -> str:
     try:
+        # Check if email already exists in profiles
+        existing_user = service_supabase.table("profiles").select("email").eq("email", email).maybe_single().execute()
+        if existing_user.data:
+            return "❌ Email already registered. Try logging in or use password reset."
+
         result = anon_supabase.auth.sign_up({
             "email": email,
             "password": password
@@ -129,7 +134,7 @@ def send_password_reset(email: str) -> str:
 def recover_user_email(keyword: str) -> list[str]:
     try:
         res = service_supabase.table("profiles").select("username, email").ilike("username", f"%{keyword}%").execute()
-        return [f"{row['username']} <{row['email']}>" for row in res.data] if res.data else []
+        return [f"{row['username']} ({row['email']})" for row in res.data] if res.data else []
     except Exception as e:
         logging.warning(f"Recover email failed for keyword '{keyword}': {e}")
         return []
