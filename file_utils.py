@@ -9,6 +9,7 @@ import faiss
 import logging
 import shutil
 import hashlib
+import mimetypes
 
 from sentence_transformers import SentenceTransformer
 
@@ -22,9 +23,24 @@ CURRENT_VERSION = "v1.0.0"
 index = None
 knowledge_texts = []
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".odt", ".rtf"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "image/jpeg",
+    "image/png",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/rtf",
+    "application/vnd.oasis.opendocument.text"
+}
 
 def is_valid_file(filename: str) -> bool:
-    return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
+    ext = os.path.splitext(filename)[1].lower()
+    mimetype, _ = mimetypes.guess_type(filename)
+    is_valid = ext in ALLOWED_EXTENSIONS and (mimetype in ALLOWED_MIME_TYPES if mimetype else False)
+    if not is_valid:
+        logging.debug(f"Rejected file: {filename}, Extension: {ext}, MIME: {mimetype}")
+    return is_valid
 
 def save_file(file) -> tuple[str, str]:
     filename = getattr(file, 'name', 'uploaded_file')
@@ -36,11 +52,16 @@ def save_file(file) -> tuple[str, str]:
             with open(filepath, "wb") as f:
                 shutil.copyfileobj(file.file, f)
         elif hasattr(file, 'read'):
-            file.seek(0)
+            try:
+                file.seek(0)
+            except Exception:
+                pass
             with open(filepath, "wb") as f:
                 f.write(file.read())
         elif hasattr(file, 'path') and os.path.exists(file.path):
             shutil.copy(file.path, filepath)
+        elif isinstance(file, str) and os.path.exists(file):
+            shutil.copy(file, filepath)
         else:
             raise ValueError(f"Unsupported file object type: {type(file)}")
         return filepath, ""
