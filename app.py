@@ -14,7 +14,7 @@ from file_utils import (
     index_document,
     load_or_create_faiss_index
 )
-from ask_tina import answer_query_with_knowledge  # ✅ ADDED
+from ask_tina import answer_query_with_knowledge  # ✅ Works now, no circular import
 from auth import authenticate_user, register_user, is_admin, send_password_reset, recover_user_email
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
@@ -32,23 +32,6 @@ load_or_create_faiss_index()
 
 SESSION_TIMEOUT = 1800
 MAX_GUEST_QUESTIONS = 5
-
-@lru_cache(maxsize=32)
-def fallback_to_chatgpt(prompt: str) -> str:
-    logging.warning("Fallback to ChatGPT activated.")
-    last_error = ""
-    for attempt in range(3):
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.choices[0].message["content"].strip()
-        except Exception as e:
-            last_error = str(e)
-            logging.error(f"[ChatGPT Retry {attempt+1}] {last_error}")
-            time.sleep(1.5)
-    return f"[ChatGPT Error] All retries failed. Reason: {last_error}"
 
 def is_tax_related(question):
     keyword_file = "tax_keywords.txt"
