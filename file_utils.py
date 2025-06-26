@@ -1,5 +1,3 @@
-# file_utils.py (patched to support separate fine-tuned embedding model for semantic search)
-
 import os
 import fitz
 import pdfplumber
@@ -9,14 +7,10 @@ from docx import Document
 import numpy as np
 import faiss
 import logging
+import shutil
 
-from sentence_transformers import SentenceTransformer  # use dedicated model for embeddings
+from sentence_transformers import SentenceTransformer
 
-# Optional: use LoRA + HuggingFace transformers if needed for embedding
-# from transformers import AutoTokenizer, AutoModel
-# from peft import PeftModel
-
-# Embedding model path (can be your LoRA fine-tuned encoder if desired)
 EMBED_MODEL_PATH = os.getenv("EMBED_MODEL_PATH", "sentence-transformers/all-MiniLM-L6-v2")
 model = SentenceTransformer(EMBED_MODEL_PATH)
 
@@ -33,9 +27,13 @@ def is_valid_file(filename: str) -> bool:
 
 def save_file(file) -> tuple[str, str]:
     filepath = os.path.join("knowledge_files", file.name)
-    with open(filepath, "wb") as f:
-        f.write(file.read())
-    return filepath, ""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    try:
+        shutil.move(file.path, filepath)  # safe for Gradio NamedString
+        return filepath, ""
+    except Exception as e:
+        logging.error(f"Failed to move uploaded file: {e}")
+        return "", f"Error saving file: {e}"
 
 def extract_text_from_file(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
