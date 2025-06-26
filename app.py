@@ -11,10 +11,10 @@ from file_utils import (
     save_file,
     is_valid_file,
     extract_text_from_file,
-    semantic_search,
     index_document,
     load_or_create_faiss_index
 )
+from ask_tina import answer_query_with_knowledge  # ✅ ADDED
 from auth import authenticate_user, register_user, is_admin, send_password_reset, recover_user_email
 from database import log_query, get_conn, init_db, store_file_text, has_uploaded_knowledge
 
@@ -78,26 +78,21 @@ def handle_ask(question, user):
     else:
         used = 0
 
-    if not has_uploaded_knowledge():
+    try:
+        results = answer_query_with_knowledge(question)
+        source = "semantic"
+    except Exception as e:
+        logging.warning(f"Semantic+Fallback error: {e}")
         fallback_answer = fallback_to_chatgpt(question)
         results = [fallback_answer]
         source = "chatgpt"
-    else:
-        try:
-            results = semantic_search(question)
-            source = "semantic"
-        except Exception as e:
-            logging.warning(f"Semantic search error: {e}")
-            fallback_answer = fallback_to_chatgpt(question)
-            results = [fallback_answer]
-            source = "chatgpt"
-            filename = f"chatgpt_{hashlib.sha256(fallback_answer.encode()).hexdigest()}.txt"
-            path = os.path.join("knowledge_files", filename)
-            if not os.path.exists(path):
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(fallback_answer)
-                index_document(fallback_answer)
-                store_file_text(filename, fallback_answer)
+        filename = f"chatgpt_{hashlib.sha256(fallback_answer.encode()).hexdigest()}.txt"
+        path = os.path.join("knowledge_files", filename)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(fallback_answer)
+            index_document(fallback_answer)
+            store_file_text(filename, fallback_answer)
 
     answer = "\n\n---\n\n".join(results)
     log_query(user, question, source, answer)
