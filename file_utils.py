@@ -30,12 +30,15 @@ def save_file(file) -> tuple[str, str]:
     filepath = os.path.join("knowledge_files", file.name)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     try:
-        if hasattr(file, 'file'):
+        if hasattr(file, 'file') and hasattr(file.file, 'read'):
             file.file.seek(0)
             with open(filepath, "wb") as f:
                 shutil.copyfileobj(file.file, f)
         elif hasattr(file, 'path'):
             shutil.move(file.path, filepath)
+        elif hasattr(file, 'read'):  # Gradio NamedString fallback
+            with open(filepath, "wb") as f:
+                f.write(file.read())
         else:
             raise ValueError("Unsupported file object type")
         return filepath, ""
