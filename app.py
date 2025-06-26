@@ -120,7 +120,7 @@ with gr.Blocks() as interface:
                     return "❌ Login failed.", "guest"
                 if "error" in profile:
                     return profile["error"], "guest"
-                return f"✅ Logged in as {profile['role']}", profile["id"]
+                return f"✅ Logged in as {profile['role']}", profile["email"]
 
             gr.Button("Login").click(handle_login, [login_user, login_pass], [login_result, login_state])
             gr.Button("Logout").click(fn=lambda: ("Logged out.", "guest"), inputs=None, outputs=[login_result, login_state])
@@ -167,15 +167,19 @@ with gr.Blocks() as interface:
             upload_result = gr.Textbox(label="Upload Status")
 
             def handle_upload(file, user):
-                if user == "guest":
-                    return "❌ Only logged in users can upload."
-                if not is_valid_file(file.name):
-                    return "❌ Invalid file type."
-                path, _ = save_file(file)
-                text = extract_text_from_file(path)
-                index_document(text)
-                store_file_text(file.name, text)
-                return f"✅ Uploaded and indexed: {file.name} by user: {user}"
+                try:
+                    if user == "guest" or not user:
+                        return "❌ Only logged in users can upload."
+                    if not is_valid_file(file.name):
+                        return "❌ Invalid file type."
+                    path, _ = save_file(file)
+                    text = extract_text_from_file(path)
+                    index_document(text)
+                    store_file_text(file.name, text)
+                    return f"✅ Uploaded and indexed: {file.name} by user: {user}"
+                except Exception as e:
+                    logging.error(f"Upload failed: {e}")
+                    return "❌ Error"
 
             gr.Button("Upload").click(fn=handle_upload, inputs=[file_upload, login_state], outputs=upload_result)
 
