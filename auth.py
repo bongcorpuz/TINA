@@ -66,7 +66,7 @@ def register_user(username: str, email: str, password: str) -> str:
             logging.error(f"Profile insert error: {e}")
             return f"❌ Signup failed. {e}"
 
-        return "✅ Signup successful. Please login."
+        return "✅ Signup successful. Please Confirm Your Email then login."
     except Exception as e:
         logging.error(f"Signup error: {e}")
         return f"❌ Signup failed. {e}"
