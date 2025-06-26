@@ -144,6 +144,13 @@ with gr.Blocks() as interface:
                     text = extract_text_from_file(path)
                     index_document(text)
                     store_file_text(file.name, text)
+
+                    # Auto-save .txt version
+                    base, _ = os.path.splitext(path)
+                    txt_path = f"{base}.txt"
+                    with open(txt_path, "w", encoding="utf-8") as f:
+                        f.write(text)
+
                     return f"✅ Uploaded and indexed: {file.name} by user: {user}"
                 except Exception as e:
                     logging.error(f"Upload failed: {e}")
