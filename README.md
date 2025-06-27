@@ -55,14 +55,7 @@ Save this in your `.env` file:
 
 ```env
 OPENAI_API_KEY=your-openai-api-key
-TINA_ADMIN_PASS=admin@1971
 
-# Optional (for future features)
-MAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=info@bongcorpuz.com
-EMAIL_PASS=your-app-password
-```
 
 ---
 
@@ -75,7 +68,6 @@ EMAIL_PASS=your-app-password
 🔺 file_utils.py        # Uploads, OCR, embeddings
 🔺 knowledge_files/     # All indexed documents
 🔺 query_log.db         # SQLite DB
-🔺 .env                 # API keys
 🔺 test_file_utils.py   # File handling test cases
 🔺 setup.sh             # System dependency installer
 ```
