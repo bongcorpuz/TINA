@@ -13,12 +13,16 @@ short_description: Tax Information Navigation Assistant
 
 ![CI](https://huggingface.co/spaces/bongcorpuz/TINA/badge.svg)
 
-# 🇵🇭 TINA: Tax Information and Navigation Assistant
+# TINA – Tax Information Navigation Assistant 🇵🇭
 
-TINA is your expert chatbot assistant for Philippine tax compliance, BIR regulations, and revenue rulings—powered by OpenAI and built by Bong Corpuz & Co. CPAs.
+**Author:** [Bong Corpuz](https://github.com/bongcorpuz)  
+**Project:** AI Tax ChatBot for the Philippines  
+**License:** MIT (or your choice)
+
+TINA is an AI-powered tax assistant built to help users understand and navigate Philippine tax laws.
+
 
 ---
-
 ## 🚀 Features
 
 - 🤖 Smart GPT Chat tuned to Philippine taxation only
